@@ -1,0 +1,39 @@
+# Runs all tests not flagged as "extended" with a pytest marker
+name: Tests
+
+defaults:
+  run:
+    shell: bash
+
+on:
+  [pull_request]
+
+
+jobs:
+  tests:
+    name: ${{ matrix.os }} / ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, ubuntu-20.04, ubuntu-22.04, macos-latest, windows-latest]
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: '**/setup.py'
+
+      - name: Upgrade pip, setuptools and wheel
+        run: pip install --upgrade pip setuptools wheel
+
+      - name: Install package
+        run: pip install '.[test]'
+
+      - name: Run tests
+        run: pytest
