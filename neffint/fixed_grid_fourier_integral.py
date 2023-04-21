@@ -1,12 +1,29 @@
-import itertools
-
 import numpy as np
+from typing import Tuple
 from numpy.typing import ArrayLike
 from scipy.interpolate import pchip_interpolate
 
 MAX_PHI_PSI_ITERATIONS = 1000
 
-def phi_and_psi(x: ArrayLike) -> np.ndarray:
+def phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
+    """Calculates the Phi and Psi functions defined in equations E.142 and E.143 in [1], which are given by:
+
+    Phi(x) = -j*exp(j*x)/x - 6j*(exp(j*x)+1)/x^3 + 12(exp(j*x)-1)/x^4,
+
+    Psi(x) = exp(j*x)/x^2 + 2j*(2*exp(j*x)+1)/x^3 - 6(exp(j*x)-1)/x^4,
+
+    Where j = sqrt(-1) is the imaginary unit.
+
+    For |x| < 1, an Taylor series approximation is summed until convergence is reached.
+
+    :param x: The input variable x, given as a single float or an array of floats.
+    :type x: ArrayLike
+    :raises RuntimeError: If the Taylor series summation did not converge after 1000 iterations.
+    :return: Tuple of two arrays: Phi and Psi, with the same shape as x
+    :rtype: Tuple[np.ndarray, np.ndarray]
+
+    [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
+    """
 
     # Make input into array if it is not already, and prepare output arrays
     x = np.asarray(x)
@@ -74,12 +91,30 @@ def fourier_integral_fixed_sampling_pchip(
     times: ArrayLike,
     frequencies: ArrayLike,
     func_values: ArrayLike,
-    inf_correction_term: bool) -> np.ndarray:
+    inf_correction_term: bool
+) -> np.ndarray:
+    """Calculates the fourier integral of the function, given as an array of values corresponding to an array of frequencies, for the time values given as input.
+    A Filon type algorithm using a piecewise cubic Hermite interpolating polynomial (pchip) and optionally an asymptotic correction term.
+    For details on implementation, see [1].
+
+    :param times: Float or 1D array of floats of length M, the time(s) to compute the fourier integral for.
+    :type times: ArrayLike
+    :param frequencies: Float or 1D array of floats of length N, the frequencies the function to be transformed have been evaluated at.
+    :type frequencies: ArrayLike
+    :param func_values: Complex or ND array of complex of shape (N, X1, X2, ...), the outputs of the function to be transformed at the frequencies given as input.
+    :type func_values: ArrayLike
+    :param inf_correction_term: True if an asymptotic correction term should be added to the output, otherwise the integral is effectively truncated at the highest frequency.
+    :type inf_correction_term: bool
+    :return: The fourier integral of the input function at the input times, given as an array of shape (M, X1, X2, ...)
+    :rtype: np.ndarray
+    
+    [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
+    """
 
     # Turn inputs into arrays if they are not already, switch to angular frequencies
-    omegas = 2 * np.pi * np.asarray(frequencies)
-    func_values = np.asarray(func_values)
-    times = np.asarray(times)
+    omegas = 2 * np.pi * np.array(frequencies)
+    func_values = np.array(func_values)
+    times = np.array(times)
 
     # Calculate derivatives
     func_derivatives = pchip_interpolate(omegas, func_values, omegas, der=1, axis=0)
