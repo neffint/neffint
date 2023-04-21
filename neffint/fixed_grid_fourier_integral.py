@@ -6,9 +6,9 @@ from scipy.interpolate import pchip_interpolate
 
 MAX_PHI_PSI_ITERATIONS = 1000
 
-
 def phi_and_psi(x: ArrayLike) -> np.ndarray:
 
+    # Make input into array if it is not already, and prepare output arrays
     x = np.asarray(x)
     phi = np.zeros_like(1j*x)
     psi = np.zeros_like(phi)
@@ -16,48 +16,59 @@ def phi_and_psi(x: ArrayLike) -> np.ndarray:
     # Set relative tolerance to machine precision
     rel_tolerance = np.finfo(x.dtype).eps
 
-    big_x_mask = np.abs(x) >= 1
+    # Define a mask of where to use a Taylor series approximation
+    taylor_mask = np.abs(x) < 1.0
 
-    x_high = x[big_x_mask]
-    exp_jx = np.exp(1j*x_high)
-    phi[big_x_mask] = (-1j*x_high**3 * exp_jx - 6j*x_high*(exp_jx+1) + 12*(exp_jx-1))/x_high**4
-    psi[big_x_mask] = ( x_high**2 * exp_jx + 2j*x_high*(2*exp_jx+1) - 6*(exp_jx-1))/x_high**4
+    # Calculate phi and psi for x >= 1
+    xx = x[~taylor_mask]
+    exp_jx = np.exp(1j*xx)
+    phi[~taylor_mask] = (-1j*xx**3 * exp_jx - 6j*xx*(exp_jx+1) + 12*(exp_jx-1))/xx**4
+    psi[~taylor_mask] = ( xx**2 * exp_jx + 2j*xx*(2*exp_jx+1) - 6*(exp_jx-1))/xx**4
 
+    # Set up for convergence loop for x < 1
+    xx = x[taylor_mask]
+    inv_factorial = 1.
+    jx_to_n = np.ones_like(1j*xx) # Starts as x**0
+    abs_x_to_n_plus_1 = np.abs(xx) # Starts as x**(0+1)
+    exp_abs_x = np.exp(np.abs(xx))
+
+    # Run convergence loop until phi and psi converged
     phi_converged = False
     psi_converged = False
-    x_low = x[~big_x_mask]
-    inv_factorial = np.ones_like(x_low)
-    power = np.ones_like(x_low, dtype=np.complex256)
-    exp_absx = np.exp(np.abs(x_low))
+    for n in range(MAX_PHI_PSI_ITERATIONS+1):
 
-    for n in itertools.count():
+        # Stop loop if converged
         if phi_converged and psi_converged:
             break
 
+        # Only calculate phi if not yet converged (to save computation time)
         if not phi_converged:
-            phi[~big_x_mask] += (n+6)/((n+3)*(n+4)) * power * inv_factorial
-            phi_converged = np.all(
-                2* np.abs(x_low) * exp_absx * inv_factorial / ((n+1)*(n+5)) <
-                rel_tolerance*np.min([np.abs(np.real(phi[~big_x_mask])), np.abs(np.imag(phi[~big_x_mask]))], axis=0)
-            )
+            phi[taylor_mask] += (n+6)/((n+3)*(n+4)) * jx_to_n * inv_factorial
+
+            # Check for convergence
+            min_phi_component = np.min([np.abs(np.real(phi[taylor_mask])), np.abs(np.imag(phi[taylor_mask]))], axis=0)
+            phi_remaining_terms_bound = 2 * abs_x_to_n_plus_1 * exp_abs_x * inv_factorial / ((n+1)*(n+5))
+            phi_converged = np.all(phi_remaining_terms_bound < rel_tolerance * min_phi_component)
         
+        # Only calculate pis if not yet converged
         if not psi_converged:
-            psi[~big_x_mask] -= 1/((n+3)*(n+4)) * power * inv_factorial
-            psi_converged = np.all(
-                np.abs(x_low) * exp_absx * inv_factorial / ((n+1)*(n+4)*(n+5)) <
-                rel_tolerance*np.min([np.abs(np.real(psi[~big_x_mask])), np.abs(np.imag(psi[~big_x_mask]))], axis=0)
-            )
+            psi[taylor_mask] += - 1/((n+3)*(n+4)) * jx_to_n * inv_factorial
+
+            # Check for convergence
+            min_psi_component = np.min([np.abs(np.real(psi[taylor_mask])), np.abs(np.imag(psi[taylor_mask]))], axis=0)
+            psi_remaining_terms_bound = abs_x_to_n_plus_1 * exp_abs_x * inv_factorial / ((n+1)*(n+4)*(n+5))
+            psi_converged = np.all(psi_remaining_terms_bound < rel_tolerance*min_psi_component)
         
-        power *= 1j*x_low
+        # Update variables
+        jx_to_n *= 1j*xx
+        abs_x_to_n_plus_1 *= np.abs(xx)
         inv_factorial /= n+1
 
-
-        
-        if n >= MAX_PHI_PSI_ITERATIONS:
-            raise RuntimeError(f"Phi and Psi calculation failed to converge after {n} iterations")
+    # If loop finished without converging, raise error
+    if not (phi_converged and psi_converged):
+        raise RuntimeError(f"Phi and Psi calculation failed to converge after {MAX_PHI_PSI_ITERATIONS} iterations")
     
     return phi, psi
-
 
 def fourier_integral_fixed_sampling_pchip(
     times: ArrayLike,
