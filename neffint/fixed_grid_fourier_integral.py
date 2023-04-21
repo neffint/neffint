@@ -12,7 +12,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -102,6 +102,37 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     
     return phi, psi
 
+def fourier_integral_inf_correction(times: np.ndarray, omega_end: float, func_value_end: ArrayLike, func_derivative_end: ArrayLike=0.):
+    """Calculate the asymptotic correction term as omega->inf of a Fourier integral for the given times.
+    Uses a first or second (if func_derivative_end is given) order Taylor expansion around the angular frequency omega_end.
+
+    :param times: A 1D array of length M with the times to compute the Fourier integral for
+    :type times: np.ndarray
+    :param omega_end: A frequency to expand the Taylor series from
+    :type omega_end: float
+    :param func_value_end: An array of shape (X1, X2, ...) containing the values of the function to be transformed evaluated at omega_end
+    :type func_value_end: ArrayLike
+    :param func_derivative_end: An array of shape (X1, X2, ...) containing the derivative of the function to be transformed, evaluated at omega_end, defaults to 0.
+    :type func_derivative_end: ArrayLike, optional
+    :return: The asymptotic terms of the Fourier Integral for all times, given as an array of shape (M, X1, X2, ...)
+    :rtype: np.ndarray
+    """
+
+    # TODO: Reconsider func_value_end and func_derivative_end types, shapes and type hints
+    
+    func_value_end = np.asarray(func_value_end)
+    func_derivative_end = np.asarray(func_derivative_end)
+    
+    # Add axes from function output
+    for _ in range(func_value_end.ndim):
+        times = times[..., np.newaxis]
+    
+    # Add time axis
+    func_value_end = func_value_end[np.newaxis, ...]
+    func_derivative_end = func_derivative_end[np.newaxis, ...]
+    
+    return np.exp(1j*times*omega_end) * (1j*func_value_end/times - func_derivative_end/times**2)
+
 def fourier_integral_fixed_sampling_pchip(
     times: ArrayLike,
     frequencies: ArrayLike,
@@ -130,15 +161,28 @@ def fourier_integral_fixed_sampling_pchip(
     omegas = 2 * np.pi * np.asarray(frequencies)
     func_values = np.asarray(func_values)
     times = np.asarray(times)
+    
+    # Set up result array
+    result = np.zeros((len(times), *[axis_size for axis_size in func_values.shape[1:]]), dtype=complex)
 
     # Calculate derivatives
     func_derivatives = pchip_interpolate(omegas, func_values, omegas, der=1, axis=0)
+    
+    # Add asymptotic correction term
+    if inf_correction_term:
+        result += fourier_integral_inf_correction(
+            times=times,
+            omega_end=omegas[-1],
+            func_value_end=func_values[-1],
+            func_derivative_end=func_derivatives[-1]
+        )
 
     # Reshape arrays for correct broadcasting
-    # Now in all arrays:
+    # Now in all arrays except result:
     # - Axis 0  : times
     # - Axis 1  : frequencies
     # - Axis 2+ : func output dims
+    # In result, the frequency axis is absent, and axes 1+ correspond to the func output dims
 
     # Add frequency axis
     times = times[..., np.newaxis]
@@ -163,17 +207,11 @@ def fourier_integral_fixed_sampling_pchip(
     phi_x, psi_x = _phi_and_psi(x)
     phi_minus_x, psi_minus_x = _phi_and_psi(-x)
 
-    result = np.sum(delta_omegas*exp_omegas*(
+    result += np.sum(delta_omegas*exp_omegas*(
         func_values[:, :-1] * phi_minus_x * exp_x + 
         func_values[:, 1: ] * phi_x - 
         delta_omegas*func_derivatives[:, :-1] * psi_minus_x * exp_x + 
         delta_omegas*func_derivatives[:, 1: ] * psi_x
-    ), axis=1, keepdims=True) # Sum over frequency axis
-
-    if inf_correction_term:
-        result += np.exp(1j*times*omegas[:, -1]) * (1j*func_values[:, -1]/times - func_derivatives[:, -1]/times**2)
-
-    # Remove frequency axis
-    result = np.squeeze(result, axis=1)
+    ), axis=1) # Sum over frequency axis
 
     return result
