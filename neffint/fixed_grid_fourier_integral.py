@@ -1,11 +1,12 @@
-import numpy as np
 from typing import Tuple
+
+import numpy as np
 from numpy.typing import ArrayLike
 from scipy.interpolate import pchip_interpolate
 
 MAX_PHI_PSI_ITERATIONS = 1000
 
-def phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
+def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     """Calculates the Phi and Psi functions defined in equations E.142 and E.143 in [1], which are given by:
 
     Phi(x) = -j*exp(j*x)/x - 6j*(exp(j*x)+1)/x^3 + 12(exp(j*x)-1)/x^4,
@@ -145,8 +146,8 @@ def fourier_integral_fixed_sampling_pchip(
     x = delta_omegas*times
 
     exp_x = np.exp(1j * x)
-    phi_x, psi_x = phi_and_psi(x)
-    phi_minus_x, psi_minus_x = phi_and_psi(-x)
+    phi_x, psi_x = _phi_and_psi(x)
+    phi_minus_x, psi_minus_x = _phi_and_psi(-x)
 
     result = np.sum(delta_omegas*exp_omegas*(
         func_values[:, :-1] * phi_minus_x * exp_x + 
