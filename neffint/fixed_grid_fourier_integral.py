@@ -127,9 +127,9 @@ def fourier_integral_fixed_sampling_pchip(
     """
 
     # Turn inputs into arrays if they are not already, switch to angular frequencies
-    omegas = 2 * np.pi * np.array(frequencies)
-    func_values = np.array(func_values)
-    times = np.array(times)
+    omegas = 2 * np.pi * np.asarray(frequencies)
+    func_values = np.asarray(func_values)
+    times = np.asarray(times)
 
     # Calculate derivatives
     func_derivatives = pchip_interpolate(omegas, func_values, omegas, der=1, axis=0)
