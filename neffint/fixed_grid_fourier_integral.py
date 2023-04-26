@@ -12,13 +12,43 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from typing import Optional, Tuple
+from typing import Tuple
 
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy.interpolate import pchip_interpolate
 
 MAX_PHI_PSI_ITERATIONS = 1000
+
+def complex_pchip(xi: ArrayLike, zi: ArrayLike, x: ArrayLike, derivative_order: int = 0, axis: int = 0) -> np.ndarray:
+    """Compute the piecewise cubic hermite interpolating polynomial (PCHIP) characterized by the points (xi, zi), where xi are real and zi are complex,
+    and evaluate this polynomial or its derivatives at the points x.
+    The real and imaginary components are treated separately, using the implementation in scipy.interpolate for
+    each component, as that implementation is only designed to take in real-valued functions.
+    The PCHIP interpolation is a cubic interpolation that guarantees to preserve monotonicity on each subinterval of the input data. In this case,
+    monotonicity is therefore preserved for both real and imaginary components.
+    
+    For more information about the PCHIP algorithm, see [1].
+    
+    [1] F. N. Fritsch and J. Butland, A method for constructing local monotone piecewise cubic interpolants, SIAM J. Sci. Comput., 5(2), 300-304 (1984). DOI:10.1137/0905021.
+
+    :param xi: A 1D array of N real input points
+    :type xi: ArrayLike
+    :param func_values: An array of of shape (N, X1, X2, ...) containing the output of the function to compute the interpolation for at each xi.
+    :type func_values: ArrayLike
+    :param x: A 1D array of M real inputs to evaluate the interpolation at
+    :type x: ArrayLike
+    :param derivative_order: The order of derivatives to compute, defaults to 0
+    :type derivative_order: int, optional
+    :param axis: The axis in func_values that corresponds to xi, defaults to 0. By setting this argument, N does not need to be the first axis of func_values
+    :type axis: int, optional
+    :return: The computed PCHIP evaluated at the points x
+    :rtype: np.ndarray
+    """
+    return (
+        (pchip_interpolate(xi, np.real(zi), x, der=derivative_order, axis=axis)
+        + 1j*pchip_interpolate(xi, np.imag(zi), x, der=derivative_order, axis=axis))
+    )
 
 def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     """Calculates the Phi and Psi functions defined in equations E.142 and E.143 in [1], which are given by:
@@ -166,7 +196,7 @@ def fourier_integral_fixed_sampling_pchip(
     result = np.zeros((len(times), *[axis_size for axis_size in func_values.shape[1:]]), dtype=complex)
 
     # Calculate derivatives
-    func_derivatives = pchip_interpolate(omegas, func_values, omegas, der=1, axis=0)
+    func_derivatives = complex_pchip(omegas, func_values, omegas, derivative_order=1)
     
     # Add asymptotic correction term
     if inf_correction_term:
