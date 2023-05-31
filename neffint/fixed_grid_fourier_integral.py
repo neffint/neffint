@@ -151,6 +151,8 @@ def fourier_integral_inf_correction(
     :type func_value_end: ArrayLike
     :param func_derivative_end: An array of shape (X1, X2, ...) containing the derivative of the function to be transformed, evaluated at omega_end, defaults to 0
     :type func_derivative_end: ArrayLike, optional
+    :param positive_inf: Flag set to True if the asymptotic correction towards +inf should be calculated, and False if the correction towards -inf should be calculated
+    :type positive_inf: bool, optional
     :return: The asymptotic terms of the Fourier Integral for all times, given as an array of shape (M, X1, X2, ...)
     :rtype: np.ndarray
     
