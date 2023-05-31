@@ -56,7 +56,7 @@ def test_phi_and_psi():
     ( lambda f: 1 / (1 + (2 * np.pi * f)**2),                       lambda t: np.pi / 2 * np.exp(-t) ),
 ])
 def test_fourier_integral_fixed_sampling_pchip(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike]):
-    """Test Fourier integral accuracy on function with an analytically known Fourier transform."""
+    """Test Fourier integral accuracy on function with an analytically known Fourier transform on positive half range."""
     input_frequencies = np.logspace(-10,20,1000)
     input_times = np.logspace(-15, 0, 50)
 
@@ -73,3 +73,30 @@ def test_fourier_integral_fixed_sampling_pchip(input_func: Callable[[ArrayLike],
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
 
     assert np.real(output_transform_arr) == pytest.approx(expected_transform_arr, rel=1e-4)
+
+
+def test_full_range_fourier_integral_fixed_sampling_pchip():
+    """Test Fourier integral accuracy on function with an analytically known Fourier transform on full range."""
+    input_func = lambda f: np.sqrt(np.pi/1e10) * np.exp(- np.pi**2 * f**2 / 1e10) # Gaussian
+    expected_transform = lambda t: 2*np.pi*np.exp( - 1e10 * t**2)
+    
+    input_freqs_half_range = np.logspace(-10,20,1000)
+    input_times_half_range = np.logspace(-15, 0, 50)
+    
+    # Add negative half ranges and sort
+    input_frequencies = np.union1d(-input_freqs_half_range, input_freqs_half_range)
+    input_times = np.union1d(-input_times_half_range, input_times_half_range)
+
+    input_func_arr = np.array([input_func(freq) for freq in input_frequencies])
+
+    output_transform_arr = fourier_integral_fixed_sampling_pchip(
+        times=input_times,
+        frequencies=input_frequencies,
+        func_values=input_func_arr,
+        pos_inf_correction_term=True,
+        neg_inf_correction_term=True
+    )
+
+    expected_transform_arr = np.array([expected_transform(time) for time in input_times])
+
+    assert output_transform_arr == pytest.approx(expected_transform_arr, rel=1e-4, abs=1e-4)
