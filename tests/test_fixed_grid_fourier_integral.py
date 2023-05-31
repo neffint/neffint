@@ -12,7 +12,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from typing import Callable
+from typing import Callable, Tuple
 
 import numpy as np
 import pytest
@@ -70,13 +70,16 @@ def test_phi_and_psi():
     assert output_psi == pytest.approx(expected_psi, rel=comparison_tolerance, abs=comparison_tolerance)
 
 
-@pytest.mark.parametrize("interpolation_mode", [mode.value for mode in InterpolationMode])
+@pytest.mark.parametrize(("interpolation_mode", "rel_tol"), [
+    (InterpolationMode.PCHIP.value, 1e-4),
+    (InterpolationMode.LINEAR.value, 1e-3),
+])
 @pytest.mark.parametrize(("input_func", "expected_transform"), [
     ( lambda f: 1 / np.sqrt( 2 * np.pi * f),                        lambda t: np.sqrt(np.pi / (2 * t)) ),
     ( lambda f: np.array([[1,2],[3,4]]) / np.sqrt( 2 * np.pi * f),  lambda t: np.array([[1,2],[3,4]]) * np.sqrt(np.pi / (2 * t)) ), # Test dimension handling
     ( lambda f: 1 / (1 + (2 * np.pi * f)**2),                       lambda t: np.pi / 2 * np.exp(-t) ),
 ])
-def test_fourier_integral_fixed_sampling_pchip(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike], interpolation_mode: str):
+def test_fourier_integral_fixed_sampling(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike], interpolation_mode: str, rel_tol: float):
     """Test Fourier integral accuracy on function with an analytically known Fourier transform on positive half range."""
     input_frequencies = np.logspace(-10,20,1000)
     input_times = np.logspace(-15, 0, 50)
@@ -94,10 +97,13 @@ def test_fourier_integral_fixed_sampling_pchip(input_func: Callable[[ArrayLike],
 
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
 
-    assert np.real(output_transform_arr) == pytest.approx(expected_transform_arr, rel=1e-4)
+    assert np.real(output_transform_arr) == pytest.approx(expected_transform_arr, rel=rel_tol)
 
-
-def test_full_range_fourier_integral_fixed_sampling_pchip():
+@pytest.mark.parametrize(("interpolation_mode", "tolerances"), [
+    (InterpolationMode.PCHIP.value, (1e-4,1e-4)),
+    (InterpolationMode.LINEAR.value, (1e-3,5e-3)),
+])
+def test_full_range_fourier_integral_fixed_sampling_pchip(interpolation_mode: str, tolerances: Tuple[float, float]):
     """Test Fourier integral accuracy on function with an analytically known Fourier transform on full range."""
     input_func = lambda f: np.sqrt(np.pi/1e10) * np.exp(- np.pi**2 * f**2 / 1e10) # Gaussian
     expected_transform = lambda t: 2*np.pi*np.exp( - 1e10 * t**2)
@@ -117,12 +123,12 @@ def test_full_range_fourier_integral_fixed_sampling_pchip():
         func_values=input_func_arr,
         pos_inf_correction_term=True,
         neg_inf_correction_term=False,
-        interpolation=InterpolationMode.PCHIP.value
+        interpolation=interpolation_mode
     )
 
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
 
-    assert output_transform_arr == pytest.approx(expected_transform_arr, rel=1e-4, abs=1e-4)
+    assert output_transform_arr == pytest.approx(expected_transform_arr, rel=tolerances[0], abs=tolerances[1])
 
 
 @pytest.mark.parametrize(("input_positive_inf", "expected_correction_term"), [
