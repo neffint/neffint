@@ -132,7 +132,13 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     
     return phi, psi
 
-def fourier_integral_inf_correction(times: ArrayLike, omega_end: float, func_value_end: ArrayLike, func_derivative_end: ArrayLike=0., positive_inf: bool=True) -> np.ndarray:
+def fourier_integral_inf_correction(
+    times: ArrayLike,
+    omega_end: float,
+    func_value_end: ArrayLike,
+    func_derivative_end: ArrayLike=0.,
+    positive_inf: bool=True
+) -> np.ndarray:
     """Calculate the asymptotic correction term as omega -> +-inf of a Fourier integral for the given times.
     Uses a first or second (if func_derivative_end is given) order Taylor expansion around the angular frequency omega_end.
 

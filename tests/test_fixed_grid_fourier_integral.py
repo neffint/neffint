@@ -19,7 +19,7 @@ import pytest
 from numpy.typing import ArrayLike
 
 from neffint.fixed_grid_fourier_integral import (
-    fourier_integral_fixed_sampling_pchip, _phi_and_psi)
+    fourier_integral_fixed_sampling_pchip, _phi_and_psi, fourier_integral_inf_correction)
 
 
 def test_phi_and_psi():
@@ -100,3 +100,30 @@ def test_full_range_fourier_integral_fixed_sampling_pchip():
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
 
     assert output_transform_arr == pytest.approx(expected_transform_arr, rel=1e-4, abs=1e-4)
+
+
+@pytest.mark.parametrize(("input_positive_inf", "expected_correction_term"), [
+    (True, 4.875060250580407690e-6 + 8.731196225215127567e-6j),
+    (False, 4.87506025058040769e-6 - 8.731196225215127567e-6j),
+])
+def test_asymptotic_correction_term(input_positive_inf: bool, expected_correction_term: complex):
+    """Test that asymptotic term computes correctly for both signs.
+    
+    Expected answers calculated in WolframAlpha as: integral from 1e10 to inf of 1/sqrt(x)*exp(+-i * x)dx"""
+    
+    input_times = 1
+    input_omega_end = 1e10
+    input_func_value_end = 1 / np.sqrt(input_omega_end)
+    input_func_derivative_end = 0.5 * input_omega_end**-1.5
+    
+    input_omega_end *= (1 if input_positive_inf else -1)
+    
+    output_correction_term = fourier_integral_inf_correction(
+        times=input_times,
+        omega_end=input_omega_end,
+        func_value_end=input_func_value_end,
+        func_derivative_end=input_func_derivative_end,
+        positive_inf=input_positive_inf
+    )
+    
+    assert output_correction_term == pytest.approx(expected_correction_term)
