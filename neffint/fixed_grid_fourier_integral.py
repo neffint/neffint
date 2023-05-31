@@ -12,7 +12,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-from typing import Tuple
+from typing import Sequence, Tuple, Union
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -20,7 +20,7 @@ from scipy.interpolate import pchip_interpolate
 
 MAX_PHI_PSI_ITERATIONS = 1000
 
-def complex_pchip(xi: ArrayLike, zi: ArrayLike, x: ArrayLike, derivative_order: int = 0, axis: int = 0) -> np.ndarray:
+def complex_pchip(xi: ArrayLike, zi: ArrayLike, x: ArrayLike, derivative_order: Union[int, Sequence[int]] = 0, axis: int = 0) -> np.ndarray:
     """Compute the piecewise cubic hermite interpolating polynomial (PCHIP) characterized by the points (xi, zi), where xi are real and zi are complex,
     and evaluate this polynomial or its derivatives at the points x.
     The real and imaginary components are treated separately, using the implementation in scipy.interpolate for
@@ -34,15 +34,15 @@ def complex_pchip(xi: ArrayLike, zi: ArrayLike, x: ArrayLike, derivative_order: 
 
     :param xi: A 1D array of N real input points
     :type xi: ArrayLike
-    :param func_values: An array of of shape (N, X1, X2, ...) containing the output of the function to compute the interpolation for at each xi.
+    :param func_values: An array of shape (N, X1, X2, ...) containing the output of the function to compute the interpolation for at each xi.
     :type func_values: ArrayLike
     :param x: A 1D array of M real inputs to evaluate the interpolation at
     :type x: ArrayLike
-    :param derivative_order: The order of derivatives to compute, defaults to 0
-    :type derivative_order: int, optional
+    :param derivative_order: The order(s) of derivatives to compute (`0` gives the function values). If a sequence, a list of arrays is returned, one for each order. Defaults to 0
+    :type derivative_order: Union[int, Sequence[int]], optional
     :param axis: The axis in func_values that corresponds to xi, defaults to 0. By setting this argument, N does not need to be the first axis of func_values
     :type axis: int, optional
-    :return: The computed PCHIP evaluated at the points x
+    :return: The computed PCHIP values or derivatives evaluated at the points x. If more than one derivative order is given, a list of arrays is returned
     :rtype: np.ndarray
     """
     return (
@@ -59,7 +59,7 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
 
     Where j = sqrt(-1) is the imaginary unit.
 
-    For |x| < 1, an Taylor series approximation is summed until convergence is reached.
+    For |x| < 1, a Taylor series approximation is summed until convergence is reached.
 
     :param x: The input variable x, given as a single float or an array of floats.
     :type x: ArrayLike
@@ -112,7 +112,7 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
             phi_remaining_terms_bound = 2 * abs_x_to_n_plus_1 * exp_abs_x * inv_factorial / ((n+1)*(n+5))
             phi_converged = np.all(phi_remaining_terms_bound < rel_tolerance * min_phi_component)
         
-        # Only calculate pis if not yet converged
+        # Only calculate psi if not yet converged
         if not psi_converged:
             psi[taylor_mask] += - 1/((n+3)*(n+4)) * jx_to_n * inv_factorial
 
@@ -132,24 +132,27 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     
     return phi, psi
 
-def fourier_integral_inf_correction(times: np.ndarray, omega_end: float, func_value_end: ArrayLike, func_derivative_end: ArrayLike=0.):
+def fourier_integral_inf_correction(times: ArrayLike, omega_end: float, func_value_end: ArrayLike, func_derivative_end: ArrayLike=0.):
     """Calculate the asymptotic correction term as omega->inf of a Fourier integral for the given times.
     Uses a first or second (if func_derivative_end is given) order Taylor expansion around the angular frequency omega_end.
 
-    :param times: A 1D array of length M with the times to compute the Fourier integral for
-    :type times: np.ndarray
-    :param omega_end: A frequency to expand the Taylor series from
+    :param times: Float or 1D array of floats of length M, the time(s) [s]* to compute the fourier integral for
+    :type times: ArrayLike
+    :param omega_end: A frequency [rad/s]* to expand the Taylor series from
     :type omega_end: float
     :param func_value_end: An array of shape (X1, X2, ...) containing the values of the function to be transformed evaluated at omega_end
     :type func_value_end: ArrayLike
-    :param func_derivative_end: An array of shape (X1, X2, ...) containing the derivative of the function to be transformed, evaluated at omega_end, defaults to 0.
+    :param func_derivative_end: An array of shape (X1, X2, ...) containing the derivative of the function to be transformed, evaluated at omega_end, defaults to 0
     :type func_derivative_end: ArrayLike, optional
     :return: The asymptotic terms of the Fourier Integral for all times, given as an array of shape (M, X1, X2, ...)
     :rtype: np.ndarray
+    
+    * Though the units s and rad/s are used here, any coherent set of time and angular frequency units will work
     """
 
     # TODO: Reconsider func_value_end and func_derivative_end types, shapes and type hints
     
+    times = np.asarray(times)
     func_value_end = np.asarray(func_value_end)
     func_derivative_end = np.asarray(func_derivative_end)
     
@@ -169,20 +172,28 @@ def fourier_integral_fixed_sampling_pchip(
     func_values: ArrayLike,
     inf_correction_term: bool
 ) -> np.ndarray:
-    """Calculates the fourier integral of the function, given as an array of values corresponding to an array of frequencies, for the time values given as input.
+    """Calculates the fourier integral of a function for the time values given as input:
+    
+    integral from fmin to fmax of : exp(2*pi*j*f*t)*func(f)*df,
+    
+    where t is the time, fmin is the first frequency in the input `frequencies`, fmax is either the highest frequency or (positive) infinity, depending on `inf_correction_term`,
+    and func(f) is the input function of frequency. The function is given as an array of outputs corresponding to the array of frequencies given. 
+    
     A Filon type algorithm using a piecewise cubic Hermite interpolating polynomial (pchip) and optionally an asymptotic correction term.
     For details on implementation, see [1].
 
-    :param times: Float or 1D array of floats of length M, the time(s) to compute the fourier integral for.
+    :param times: Float or 1D array of floats of length M, the time(s) [s]* to compute the fourier integral for
     :type times: ArrayLike
-    :param frequencies: Float or 1D array of floats of length N, the frequencies the function to be transformed have been evaluated at.
+    :param frequencies: Float or 1D array of floats of length N, the frequencies [Hz]* the function to be transformed have been evaluated at
     :type frequencies: ArrayLike
-    :param func_values: Complex or ND array of complex of shape (N, X1, X2, ...), the outputs of the function to be transformed at the frequencies given as input.
+    :param func_values: Complex or ND array of complex of shape (N, X1, X2, ...), the outputs of the function to be transformed at the frequencies given as input
     :type func_values: ArrayLike
-    :param inf_correction_term: True if an asymptotic correction term should be added to the output, otherwise the integral is effectively truncated at the highest frequency.
+    :param inf_correction_term: True if an asymptotic correction term should be added to the output, otherwise the integral is effectively truncated at the highest frequency
     :type inf_correction_term: bool
     :return: The fourier integral of the input function at the input times, given as an array of shape (M, X1, X2, ...)
     :rtype: np.ndarray
+    
+    * Though the units s and Hz are used here, any coherent set of time and frequency units will work
     
     [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
     """
