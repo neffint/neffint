@@ -15,10 +15,15 @@
 from typing import Sequence, Tuple, Union
 
 import numpy as np
+from enum import Enum
 from numpy.typing import ArrayLike
 from scipy.interpolate import pchip_interpolate
 
 MAX_TAYLOR_ITERATIONS = 1000
+
+class InterpolationMode(Enum):
+    PCHIP = "pchip"
+    LINEAR = "linear"
 
 def _lambda(x: ArrayLike) -> np.ndarray:
     """Calculates the Lambda function defined in equations E.136 in [1], which is given by:
@@ -238,12 +243,13 @@ def fourier_integral_inf_correction(
     
     return sign * np.exp(1j*times*omega_end) * (1j*func_value_end/times - func_derivative_end/times**2)
 
-def fourier_integral_fixed_sampling_pchip(
+def fourier_integral_fixed_sampling(
     times: ArrayLike,
     frequencies: ArrayLike,
     func_values: ArrayLike,
     pos_inf_correction_term: bool,
-    neg_inf_correction_term: bool
+    neg_inf_correction_term: bool,
+    interpolation: str
 ) -> np.ndarray:
     """Calculates the fourier integral of a function for the time values given as input:
     
@@ -252,7 +258,8 @@ def fourier_integral_fixed_sampling_pchip(
     where t is the time, fmin is the first frequency in the input `frequencies`, fmax is either the highest frequency or (positive) infinity, depending on `inf_correction_term`,
     and func(f) is the input function of frequency. The function is given as an array of outputs corresponding to the array of frequencies given. 
     
-    A Filon type algorithm using a piecewise cubic Hermite interpolating polynomial (pchip) and optionally an asymptotic correction term at each end.
+    A Filon type algorithm using a either a piecewise cubic Hermite interpolating polynomial (pchip) or a piecewise linear polynomial, depending on the interpolation argument.
+    Optionally, an asymptotic correction term can also be computed at each end.
     For details on implementation, see [1].
 
     :param times: Float or 1D array of floats of length M, the time(s) [s]* to compute the fourier integral for
@@ -265,6 +272,8 @@ def fourier_integral_fixed_sampling_pchip(
     :type pos_inf_correction_term: bool
     :param neg_inf_correction_term: True if an asymptotic correction term towards -infinity should be added, otherwise the integral is effectively truncated at the lowest (closest to -inf) frequency
     :type neg_inf_correction_term: bool
+    :param interpolation: String either equal to "pchip" or "linear", to select the integration methods using PCHIP or piecewise linear interpolation, respectively.
+    :type interpolation: str
     :return: The fourier integral of the input function at the input times, given as an array of shape (M, X1, X2, ...)
     :rtype: np.ndarray
     
@@ -272,7 +281,10 @@ def fourier_integral_fixed_sampling_pchip(
     
     [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
     """
-
+    
+    assert interpolation in [mode.value for mode in InterpolationMode]
+    interpolation_mode = InterpolationMode(interpolation)
+    
     # Turn inputs into arrays if they are not already, switch to angular frequencies
     omegas = 2 * np.pi * np.asarray(frequencies)
     func_values = np.asarray(func_values)
@@ -281,8 +293,20 @@ def fourier_integral_fixed_sampling_pchip(
     # Set up result array
     result = np.zeros((len(times), *[axis_size for axis_size in func_values.shape[1:]]), dtype=complex)
 
-    # Calculate derivatives
-    func_derivatives = complex_pchip(omegas, func_values, omegas, derivative_order=1)
+    # Do mode specific setup
+    if interpolation_mode == InterpolationMode.PCHIP:
+        # Calculate derivatives
+        func_derivatives = complex_pchip(omegas, func_values, omegas, derivative_order=1)
+        func_derivative_high_end = func_derivatives[-1]
+        func_derivative_low_end = func_derivatives[0]
+        
+    elif interpolation_mode == InterpolationMode.LINEAR:
+        # Set derivative at end to 0
+        func_derivative_high_end = 0
+        func_derivative_low_end = 0
+
+    else:
+        raise NotImplementedError(f"This state should be unreachable. Need to implement derivative calculation for {interpolation_mode}")
     
     # Add asymptotic correction terms
     if pos_inf_correction_term:
@@ -290,7 +314,7 @@ def fourier_integral_fixed_sampling_pchip(
             times=times,
             omega_end=omegas[-1],
             func_value_end=func_values[-1],
-            func_derivative_end=func_derivatives[-1],
+            func_derivative_end=func_derivative_high_end,
             positive_inf=True
         )
         
@@ -299,7 +323,7 @@ def fourier_integral_fixed_sampling_pchip(
             times=times,
             omega_end=omegas[0],
             func_value_end=func_values[0],
-            func_derivative_end=func_derivatives[0],
+            func_derivative_end=func_derivative_low_end,
             positive_inf=False
         )
 
@@ -316,24 +340,39 @@ def fourier_integral_fixed_sampling_pchip(
     # Add time axis
     omegas = omegas[np.newaxis, ...]
     func_values = func_values[np.newaxis, ...]
-    func_derivatives = func_derivatives[np.newaxis, ...]
 
     # Add new axes for each axis of func_values except the frequency and time axes
     for _ in range(func_values.ndim - 2):
         omegas = omegas[..., np.newaxis]
         times = times[..., np.newaxis]
     
-    # Find deltas
+    
+    if interpolation_mode == InterpolationMode.PCHIP:
+        # Add time axis
+        func_derivatives = func_derivatives[np.newaxis, ...]
+        
+        # Do the integration
+        result += _fourier_integral_fixed_sampling_pchip(times, omegas, func_values, func_derivatives)
+    
+    return result
+        
+
+def _fourier_integral_fixed_sampling_pchip(
+    times: np.ndarray,
+    omegas: np.ndarray,
+    func_values: np.ndarray,
+    func_derivatives: np.ndarray,
+) -> np.ndarray:
+    
+    # Calculate intermediate values
     delta_omegas = np.diff(omegas, axis=1)
     exp_omegas = np.exp(1j * omegas[:, :-1] * times)
-
     x = delta_omegas*times
-
     exp_x = np.exp(1j * x)
     phi_x, psi_x = _phi_and_psi(x)
     phi_minus_x, psi_minus_x = _phi_and_psi(-x)
 
-    result += np.sum(delta_omegas*exp_omegas*(
+    result = np.sum(delta_omegas*exp_omegas*(
         func_values[:, :-1] * phi_minus_x * exp_x + 
         func_values[:, 1: ] * phi_x - 
         delta_omegas*func_derivatives[:, :-1] * psi_minus_x * exp_x + 

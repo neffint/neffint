@@ -18,8 +18,8 @@ import numpy as np
 import pytest
 from numpy.typing import ArrayLike
 
-from neffint.fixed_grid_fourier_integral import (
-    fourier_integral_fixed_sampling_pchip, _phi_and_psi, fourier_integral_inf_correction)
+from neffint.fixed_grid_fourier_integral import (fourier_integral_fixed_sampling, InterpolationMode,
+    _fourier_integral_fixed_sampling_pchip, _phi_and_psi, fourier_integral_inf_correction)
 
 
 def test_phi_and_psi():
@@ -62,12 +62,13 @@ def test_fourier_integral_fixed_sampling_pchip(input_func: Callable[[ArrayLike],
 
     input_func_arr = np.array([input_func(freq) for freq in input_frequencies])
 
-    output_transform_arr = fourier_integral_fixed_sampling_pchip(
+    output_transform_arr = fourier_integral_fixed_sampling(
         times=input_times,
         frequencies=input_frequencies,
         func_values=input_func_arr,
         pos_inf_correction_term=True,
-        neg_inf_correction_term=False
+        neg_inf_correction_term=False,
+        interpolation=InterpolationMode.PCHIP.value
     )
 
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
@@ -89,12 +90,13 @@ def test_full_range_fourier_integral_fixed_sampling_pchip():
 
     input_func_arr = np.array([input_func(freq) for freq in input_frequencies])
 
-    output_transform_arr = fourier_integral_fixed_sampling_pchip(
+    output_transform_arr = fourier_integral_fixed_sampling(
         times=input_times,
         frequencies=input_frequencies,
         func_values=input_func_arr,
         pos_inf_correction_term=True,
-        neg_inf_correction_term=True
+        neg_inf_correction_term=True,
+        interpolation=InterpolationMode.PCHIP.value
     )
 
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
