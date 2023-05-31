@@ -18,7 +18,70 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy.interpolate import pchip_interpolate
 
-MAX_PHI_PSI_ITERATIONS = 1000
+MAX_TAYLOR_ITERATIONS = 1000
+
+def _lambda(x: ArrayLike) -> np.ndarray:
+    """Calculates the Lambda function defined in equations E.136 in [1], which is given by:
+
+    Lambda(x) = -j*exp(j*x)/x + (exp(j*x)-1)/x^2,
+
+    where j = sqrt(-1) is the imaginary unit.
+
+    For |x| < 1, an Taylor series approximation is summed until convergence is reached.
+
+    :param x: The input variable x, given as a single float or an array of floats.
+    :type x: ArrayLike
+    :raises RuntimeError: If the Taylor series summation did not converge after 1000 iterations.
+    :return: Lambda, an array with the same shape as x
+    :rtype: np.ndarray
+
+    [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
+    """
+    # Make input into array if it is not already, and prepare output arrays
+    x = np.asarray(x)
+    result = np.zeros_like(1j*x)
+
+    # Set relative tolerance to machine precision
+    rel_tolerance = np.finfo(x.dtype).eps
+
+    # Define a mask of where to use a Taylor series approximation
+    taylor_mask = np.abs(x) < 1.0
+
+    # Calculate phi and psi for x >= 1
+    xx = x[~taylor_mask]
+    exp_jx = np.exp(1j*xx)
+    result[~taylor_mask] = -1j*exp_jx/xx + (exp_jx-1)/xx**2
+
+    # Set up for convergence loop for x < 1
+    xx = x[taylor_mask]
+    inv_factorial = 1.
+    jx_to_n = np.ones_like(1j*xx) # Starts as x**0
+    abs_x_to_n_plus_1 = np.abs(xx) # Starts as x**(0+1)
+    exp_abs_x = np.exp(np.abs(xx))
+
+    # Run convergence loop until phi and psi converged
+    for n in range(MAX_TAYLOR_ITERATIONS+1):
+        
+        # Add next term
+        result[taylor_mask] += 1/(n+2) * jx_to_n * inv_factorial
+        
+        # Check convergence
+        min_component = np.min([np.abs(np.real(result[taylor_mask])), np.abs(np.imag(result[taylor_mask]))], axis=0)
+        remaining_term_bound = abs_x_to_n_plus_1*exp_abs_x * inv_factorial * 1/((n+3)*(n+1))
+        if remaining_term_bound < rel_tolerance * min_component:
+            break
+        
+        # Update variables
+        jx_to_n *= 1j*xx
+        abs_x_to_n_plus_1 *= np.abs(xx)
+        inv_factorial /= n + 1
+        
+
+    # If loop finished without converging, raise error
+    if n == MAX_TAYLOR_ITERATIONS:
+        raise RuntimeError(f"Lambda calculation failed to converge after {MAX_TAYLOR_ITERATIONS} iterations")
+    
+    return result
 
 def complex_pchip(xi: ArrayLike, zi: ArrayLike, x: ArrayLike, derivative_order: Union[int, Sequence[int]] = 0, axis: int = 0) -> np.ndarray:
     """Compute the piecewise cubic hermite interpolating polynomial (PCHIP) characterized by the points (xi, zi), where xi are real and zi are complex,
@@ -97,7 +160,7 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     # Run convergence loop until phi and psi converged
     phi_converged = False
     psi_converged = False
-    for n in range(MAX_PHI_PSI_ITERATIONS+1):
+    for n in range(MAX_TAYLOR_ITERATIONS+1):
 
         # Stop loop if converged
         if phi_converged and psi_converged:
@@ -128,7 +191,7 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
 
     # If loop finished without converging, raise error
     if not (phi_converged and psi_converged):
-        raise RuntimeError(f"Phi and Psi calculation failed to converge after {MAX_PHI_PSI_ITERATIONS} iterations")
+        raise RuntimeError(f"Phi and Psi calculation failed to converge after {MAX_TAYLOR_ITERATIONS} iterations")
     
     return phi, psi
 
