@@ -132,13 +132,14 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     
     return phi, psi
 
-def fourier_integral_inf_correction(times: ArrayLike, omega_end: float, func_value_end: ArrayLike, func_derivative_end: ArrayLike=0.):
-    """Calculate the asymptotic correction term as omega->inf of a Fourier integral for the given times.
+def fourier_integral_inf_correction(times: ArrayLike, omega_end: float, func_value_end: ArrayLike, func_derivative_end: ArrayLike=0., positive_inf: bool=True) -> np.ndarray:
+    """Calculate the asymptotic correction term as omega -> +-inf of a Fourier integral for the given times.
     Uses a first or second (if func_derivative_end is given) order Taylor expansion around the angular frequency omega_end.
 
     :param times: Float or 1D array of floats of length M, the time(s) [s]* to compute the fourier integral for
     :type times: ArrayLike
-    :param omega_end: A frequency [rad/s]* to expand the Taylor series from
+    :param omega_end: An angular frequency [rad/s]* to expand the Taylor series from. If `positive_inf == True`, this should be the highest angular frequency used.
+    Otherwise, it should be the lowest (closest to -inf).
     :type omega_end: float
     :param func_value_end: An array of shape (X1, X2, ...) containing the values of the function to be transformed evaluated at omega_end
     :type func_value_end: ArrayLike
@@ -149,8 +150,8 @@ def fourier_integral_inf_correction(times: ArrayLike, omega_end: float, func_val
     
     * Though the units s and rad/s are used here, any coherent set of time and angular frequency units will work
     """
-
-    # TODO: Reconsider func_value_end and func_derivative_end types, shapes and type hints
+    
+    sign = (1 if positive_inf else -1)
     
     times = np.asarray(times)
     func_value_end = np.asarray(func_value_end)
@@ -164,13 +165,14 @@ def fourier_integral_inf_correction(times: ArrayLike, omega_end: float, func_val
     func_value_end = func_value_end[np.newaxis, ...]
     func_derivative_end = func_derivative_end[np.newaxis, ...]
     
-    return np.exp(1j*times*omega_end) * (1j*func_value_end/times - func_derivative_end/times**2)
+    return sign * np.exp(1j*times*omega_end) * (1j*func_value_end/times - func_derivative_end/times**2)
 
 def fourier_integral_fixed_sampling_pchip(
     times: ArrayLike,
     frequencies: ArrayLike,
     func_values: ArrayLike,
-    inf_correction_term: bool
+    pos_inf_correction_term: bool,
+    neg_inf_correction_term: bool
 ) -> np.ndarray:
     """Calculates the fourier integral of a function for the time values given as input:
     
@@ -179,7 +181,7 @@ def fourier_integral_fixed_sampling_pchip(
     where t is the time, fmin is the first frequency in the input `frequencies`, fmax is either the highest frequency or (positive) infinity, depending on `inf_correction_term`,
     and func(f) is the input function of frequency. The function is given as an array of outputs corresponding to the array of frequencies given. 
     
-    A Filon type algorithm using a piecewise cubic Hermite interpolating polynomial (pchip) and optionally an asymptotic correction term.
+    A Filon type algorithm using a piecewise cubic Hermite interpolating polynomial (pchip) and optionally an asymptotic correction term at each end.
     For details on implementation, see [1].
 
     :param times: Float or 1D array of floats of length M, the time(s) [s]* to compute the fourier integral for
@@ -188,8 +190,10 @@ def fourier_integral_fixed_sampling_pchip(
     :type frequencies: ArrayLike
     :param func_values: Complex or ND array of complex of shape (N, X1, X2, ...), the outputs of the function to be transformed at the frequencies given as input
     :type func_values: ArrayLike
-    :param inf_correction_term: True if an asymptotic correction term should be added to the output, otherwise the integral is effectively truncated at the highest frequency
-    :type inf_correction_term: bool
+    :param pos_inf_correction_term: True if an asymptotic correction term towards +infinity should be added, otherwise the integral is effectively truncated at the highest frequency
+    :type pos_inf_correction_term: bool
+    :param neg_inf_correction_term: True if an asymptotic correction term towards -infinity should be added, otherwise the integral is effectively truncated at the lowest (closest to -inf) frequency
+    :type neg_inf_correction_term: bool
     :return: The fourier integral of the input function at the input times, given as an array of shape (M, X1, X2, ...)
     :rtype: np.ndarray
     
@@ -209,13 +213,23 @@ def fourier_integral_fixed_sampling_pchip(
     # Calculate derivatives
     func_derivatives = complex_pchip(omegas, func_values, omegas, derivative_order=1)
     
-    # Add asymptotic correction term
-    if inf_correction_term:
+    # Add asymptotic correction terms
+    if pos_inf_correction_term:
         result += fourier_integral_inf_correction(
             times=times,
             omega_end=omegas[-1],
             func_value_end=func_values[-1],
-            func_derivative_end=func_derivatives[-1]
+            func_derivative_end=func_derivatives[-1],
+            positive_inf=True
+        )
+        
+    if neg_inf_correction_term:
+        result += fourier_integral_inf_correction(
+            times=times,
+            omega_end=omegas[0],
+            func_value_end=func_values[0],
+            func_derivative_end=func_derivatives[0],
+            positive_inf=False
         )
 
     # Reshape arrays for correct broadcasting

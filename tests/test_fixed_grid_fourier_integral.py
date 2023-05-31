@@ -66,7 +66,8 @@ def test_fourier_integral_fixed_sampling_pchip(input_func: Callable[[ArrayLike],
         times=input_times,
         frequencies=input_frequencies,
         func_values=input_func_arr,
-        inf_correction_term=True,
+        pos_inf_correction_term=True,
+        neg_inf_correction_term=False
     )
 
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
