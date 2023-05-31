@@ -19,12 +19,31 @@ import pytest
 from numpy.typing import ArrayLike
 
 from neffint.fixed_grid_fourier_integral import (
-    InterpolationMode, _fourier_integral_inf_correction, _phi_and_psi,
+    InterpolationMode, _fourier_integral_inf_correction, _lambda, _phi_and_psi,
     fourier_integral_fixed_sampling)
 
 
+def test_lambda():
+    """Test _lambda against calculation with the analytical formula using 200 decimal digit precision with mpmath."""
+    input_x = np.array([1e-9, 1, 1e9, 1e18], dtype=np.float64)
+
+    # Set tolerance to 10*machine precision
+    comparison_tolerance = 10 * np.finfo(input_x.dtype).eps
+
+    # Expected outputs generated with mpmath at 200 decimal digit precision
+    expected_lambda = np.array([
+        0.5+3.333333333333333e-10j,
+        0.3817732906760362+0.3011686789397568j,
+        5.458434492865867e-10-8.378871808180589e-10j,
+        -9.92969320740405e-19-1.1837199021871074e-19j
+    ])
+
+    output_lambda = _lambda(input_x)
+
+    assert output_lambda == pytest.approx(expected_lambda, rel=comparison_tolerance, abs=comparison_tolerance)
+
 def test_phi_and_psi():
-    """Test phi_and_psi against calculation using the analytical formula using 200 decimal digit precision with mpmath."""
+    """Test _phi_and_psi against calculation using the analytical formula using 200 decimal digit precision with mpmath."""
     input_x = np.array([1e-9, 1, 1e9, 1e18], dtype=np.float64)
 
     # Set tolerance to 10*machine precision
@@ -59,7 +78,7 @@ def test_phi_and_psi():
 ])
 def test_fourier_integral_fixed_sampling_pchip(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike], interpolation_mode: str):
     """Test Fourier integral accuracy on function with an analytically known Fourier transform on positive half range."""
-    input_frequencies = np.logspace(-10,20,10000)
+    input_frequencies = np.logspace(-10,20,1000)
     input_times = np.logspace(-15, 0, 50)
 
     input_func_arr = np.array([input_func(freq) for freq in input_frequencies])
