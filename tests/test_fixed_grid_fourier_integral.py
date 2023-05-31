@@ -18,8 +18,9 @@ import numpy as np
 import pytest
 from numpy.typing import ArrayLike
 
-from neffint.fixed_grid_fourier_integral import (fourier_integral_fixed_sampling, InterpolationMode,
-    _fourier_integral_fixed_sampling_pchip, _phi_and_psi, fourier_integral_inf_correction)
+from neffint.fixed_grid_fourier_integral import (
+    InterpolationMode, _fourier_integral_inf_correction, _phi_and_psi,
+    fourier_integral_fixed_sampling)
 
 
 def test_phi_and_psi():
@@ -50,14 +51,15 @@ def test_phi_and_psi():
     assert output_psi == pytest.approx(expected_psi, rel=comparison_tolerance, abs=comparison_tolerance)
 
 
+@pytest.mark.parametrize("interpolation_mode", [mode.value for mode in InterpolationMode])
 @pytest.mark.parametrize(("input_func", "expected_transform"), [
     ( lambda f: 1 / np.sqrt( 2 * np.pi * f),                        lambda t: np.sqrt(np.pi / (2 * t)) ),
     ( lambda f: np.array([[1,2],[3,4]]) / np.sqrt( 2 * np.pi * f),  lambda t: np.array([[1,2],[3,4]]) * np.sqrt(np.pi / (2 * t)) ), # Test dimension handling
     ( lambda f: 1 / (1 + (2 * np.pi * f)**2),                       lambda t: np.pi / 2 * np.exp(-t) ),
 ])
-def test_fourier_integral_fixed_sampling_pchip(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike]):
+def test_fourier_integral_fixed_sampling_pchip(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike], interpolation_mode: str):
     """Test Fourier integral accuracy on function with an analytically known Fourier transform on positive half range."""
-    input_frequencies = np.logspace(-10,20,1000)
+    input_frequencies = np.logspace(-10,20,10000)
     input_times = np.logspace(-15, 0, 50)
 
     input_func_arr = np.array([input_func(freq) for freq in input_frequencies])
@@ -68,7 +70,7 @@ def test_fourier_integral_fixed_sampling_pchip(input_func: Callable[[ArrayLike],
         func_values=input_func_arr,
         pos_inf_correction_term=True,
         neg_inf_correction_term=False,
-        interpolation=InterpolationMode.PCHIP.value
+        interpolation=interpolation_mode
     )
 
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
@@ -95,7 +97,7 @@ def test_full_range_fourier_integral_fixed_sampling_pchip():
         frequencies=input_frequencies,
         func_values=input_func_arr,
         pos_inf_correction_term=True,
-        neg_inf_correction_term=True,
+        neg_inf_correction_term=False,
         interpolation=InterpolationMode.PCHIP.value
     )
 
@@ -120,7 +122,7 @@ def test_asymptotic_correction_term(input_positive_inf: bool, expected_correctio
     
     input_omega_end *= (1 if input_positive_inf else -1)
     
-    output_correction_term = fourier_integral_inf_correction(
+    output_correction_term = _fourier_integral_inf_correction(
         times=input_times,
         omega_end=input_omega_end,
         func_value_end=input_func_value_end,

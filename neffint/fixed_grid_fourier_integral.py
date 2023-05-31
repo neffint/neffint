@@ -12,10 +12,10 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+from enum import Enum
 from typing import Sequence, Tuple, Union
 
 import numpy as np
-from enum import Enum
 from numpy.typing import ArrayLike
 from scipy.interpolate import pchip_interpolate
 
@@ -73,7 +73,7 @@ def _lambda(x: ArrayLike) -> np.ndarray:
         # Check convergence
         min_component = np.min([np.abs(np.real(result[taylor_mask])), np.abs(np.imag(result[taylor_mask]))], axis=0)
         remaining_term_bound = abs_x_to_n_plus_1*exp_abs_x * inv_factorial * 1/((n+3)*(n+1))
-        if remaining_term_bound < rel_tolerance * min_component:
+        if np.all(remaining_term_bound < rel_tolerance * min_component):
             break
         
         # Update variables
@@ -81,7 +81,6 @@ def _lambda(x: ArrayLike) -> np.ndarray:
         abs_x_to_n_plus_1 *= np.abs(xx)
         inv_factorial /= n + 1
         
-
     # If loop finished without converging, raise error
     if n == MAX_TAYLOR_ITERATIONS:
         raise RuntimeError(f"Lambda calculation failed to converge after {MAX_TAYLOR_ITERATIONS} iterations")
@@ -117,6 +116,7 @@ def complex_pchip(xi: ArrayLike, zi: ArrayLike, x: ArrayLike, derivative_order: 
         (pchip_interpolate(xi, np.real(zi), x, der=derivative_order, axis=axis)
         + 1j*pchip_interpolate(xi, np.imag(zi), x, der=derivative_order, axis=axis))
     )
+
 
 def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     """Calculates the Phi and Psi functions defined in equations E.142 and E.143 in [1], which are given by:
@@ -200,7 +200,7 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     
     return phi, psi
 
-def fourier_integral_inf_correction(
+def _fourier_integral_inf_correction(
     times: ArrayLike,
     omega_end: float,
     func_value_end: ArrayLike,
@@ -290,7 +290,7 @@ def fourier_integral_fixed_sampling(
     func_values = np.asarray(func_values)
     times = np.asarray(times)
     
-    # Set up result array
+    # Set up result array, shape (M, X1, X2, ...)
     result = np.zeros((len(times), *[axis_size for axis_size in func_values.shape[1:]]), dtype=complex)
 
     # Do mode specific setup
@@ -310,7 +310,7 @@ def fourier_integral_fixed_sampling(
     
     # Add asymptotic correction terms
     if pos_inf_correction_term:
-        result += fourier_integral_inf_correction(
+        result += _fourier_integral_inf_correction(
             times=times,
             omega_end=omegas[-1],
             func_value_end=func_values[-1],
@@ -319,7 +319,7 @@ def fourier_integral_fixed_sampling(
         )
         
     if neg_inf_correction_term:
-        result += fourier_integral_inf_correction(
+        result += _fourier_integral_inf_correction(
             times=times,
             omega_end=omegas[0],
             func_value_end=func_values[0],
@@ -347,12 +347,16 @@ def fourier_integral_fixed_sampling(
         times = times[..., np.newaxis]
     
     
+    # Do the fourier integration
     if interpolation_mode == InterpolationMode.PCHIP:
-        # Add time axis
-        func_derivatives = func_derivatives[np.newaxis, ...]
-        
-        # Do the integration
+        func_derivatives = func_derivatives[np.newaxis, ...] # Add time axis
         result += _fourier_integral_fixed_sampling_pchip(times, omegas, func_values, func_derivatives)
+    
+    elif interpolation_mode == InterpolationMode.LINEAR:
+        result += _fourier_integral_fixed_sampling_linear(times, omegas, func_values)
+    
+    else:
+        raise NotImplementedError(f"This state should be unreachable. Need to implement fourier integral calculation for {interpolation_mode}")
     
     return result
         
@@ -372,11 +376,28 @@ def _fourier_integral_fixed_sampling_pchip(
     phi_x, psi_x = _phi_and_psi(x)
     phi_minus_x, psi_minus_x = _phi_and_psi(-x)
 
+    # Calculate integral by summing over frequency axis
     result = np.sum(delta_omegas*exp_omegas*(
         func_values[:, :-1] * phi_minus_x * exp_x + 
         func_values[:, 1: ] * phi_x - 
         delta_omegas*func_derivatives[:, :-1] * psi_minus_x * exp_x + 
         delta_omegas*func_derivatives[:, 1: ] * psi_x
+    ), axis=1) # Sum over frequency axis
+
+    return result
+
+def _fourier_integral_fixed_sampling_linear(
+    times: np.ndarray,
+    omegas: np.ndarray,
+    func_values: np.ndarray
+) -> np.ndarray:
+    
+    delta_omegas = np.diff(omegas, axis=1)
+
+    # Calculate integral by summing over frequency axis
+    result = np.sum(delta_omegas*(
+        func_values[:, :-1]  * np.exp(1j*omegas[:, 1: ]*times) * _lambda(-delta_omegas*times)
+        + func_values[:, 1:] * np.exp(1j*omegas[:, :-1]*times) * _lambda( delta_omegas*times) 
     ), axis=1) # Sum over frequency axis
 
     return result
