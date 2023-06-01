@@ -32,7 +32,7 @@ def _lambda(x: ArrayLike) -> np.ndarray:
 
     where j = sqrt(-1) is the imaginary unit.
 
-    For |x| < 1, an Taylor series approximation is summed until convergence is reached.
+    For |x| < 1, a Taylor series approximation is summed until convergence is reached.
 
     :param x: The input variable x, given as a single float or an array of floats.
     :type x: ArrayLike

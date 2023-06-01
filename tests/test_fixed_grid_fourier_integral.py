@@ -42,6 +42,7 @@ def test_lambda():
 
     assert output_lambda == pytest.approx(expected_lambda, rel=comparison_tolerance, abs=comparison_tolerance)
 
+
 def test_phi_and_psi():
     """Test _phi_and_psi against calculation using the analytical formula using 200 decimal digit precision with mpmath."""
     input_x = np.array([1e-9, 1, 1e9, 1e18], dtype=np.float64)
@@ -99,11 +100,12 @@ def test_fourier_integral_fixed_sampling(input_func: Callable[[ArrayLike], Array
 
     assert np.real(output_transform_arr) == pytest.approx(expected_transform_arr, rel=rel_tol)
 
+
 @pytest.mark.parametrize(("interpolation_mode", "tolerances"), [
     (InterpolationMode.PCHIP.value, (1e-4,1e-4)),
     (InterpolationMode.LINEAR.value, (1e-3,5e-3)),
 ])
-def test_full_range_fourier_integral_fixed_sampling_pchip(interpolation_mode: str, tolerances: Tuple[float, float]):
+def test_full_range_fourier_integral_fixed_sampling(interpolation_mode: str, tolerances: Tuple[float, float]):
     """Test Fourier integral accuracy on function with an analytically known Fourier transform on full range."""
     input_func = lambda f: np.sqrt(np.pi/1e10) * np.exp(- np.pi**2 * f**2 / 1e10) # Gaussian
     expected_transform = lambda t: 2*np.pi*np.exp( - 1e10 * t**2)
@@ -122,7 +124,7 @@ def test_full_range_fourier_integral_fixed_sampling_pchip(interpolation_mode: st
         frequencies=input_frequencies,
         func_values=input_func_arr,
         pos_inf_correction_term=True,
-        neg_inf_correction_term=False,
+        neg_inf_correction_term=True,
         interpolation=interpolation_mode
     )
 
