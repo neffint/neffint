@@ -12,13 +12,80 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+from enum import Enum
 from typing import Sequence, Tuple, Union
 
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy.interpolate import pchip_interpolate
 
-MAX_PHI_PSI_ITERATIONS = 1000
+MAX_TAYLOR_ITERATIONS = 1000
+
+class InterpolationMode(Enum):
+    PCHIP = "pchip"
+    LINEAR = "linear"
+
+def _lambda(x: ArrayLike) -> np.ndarray:
+    """Calculates the Lambda function defined in equations E.136 in [1], which is given by:
+
+    Lambda(x) = -j*exp(j*x)/x + (exp(j*x)-1)/x^2,
+
+    where j = sqrt(-1) is the imaginary unit.
+
+    For |x| < 1, a Taylor series approximation is summed until convergence is reached.
+
+    :param x: The input variable x, given as a single float or an array of floats.
+    :type x: ArrayLike
+    :raises RuntimeError: If the Taylor series summation did not converge after 1000 iterations.
+    :return: Lambda, an array with the same shape as x
+    :rtype: np.ndarray
+
+    [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
+    """
+    # Make input into array if it is not already, and prepare output arrays
+    x = np.asarray(x)
+    result = np.zeros_like(1j*x)
+
+    # Set relative tolerance to machine precision
+    rel_tolerance = np.finfo(x.dtype).eps
+
+    # Define a mask of where to use a Taylor series approximation
+    taylor_mask = np.abs(x) < 1.0
+
+    # Calculate phi and psi for x >= 1
+    xx = x[~taylor_mask]
+    exp_jx = np.exp(1j*xx)
+    result[~taylor_mask] = -1j*exp_jx/xx + (exp_jx-1)/xx**2
+
+    # Set up for convergence loop for x < 1
+    xx = x[taylor_mask]
+    inv_factorial = 1.
+    jx_to_n = np.ones_like(1j*xx) # Starts as x**0
+    abs_x_to_n_plus_1 = np.abs(xx) # Starts as x**(0+1)
+    exp_abs_x = np.exp(np.abs(xx))
+
+    # Run convergence loop until phi and psi converged
+    for n in range(MAX_TAYLOR_ITERATIONS+1):
+        
+        # Add next term
+        result[taylor_mask] += 1/(n+2) * jx_to_n * inv_factorial
+        
+        # Check convergence
+        min_component = np.min([np.abs(np.real(result[taylor_mask])), np.abs(np.imag(result[taylor_mask]))], axis=0)
+        remaining_term_bound = abs_x_to_n_plus_1*exp_abs_x * inv_factorial * 1/((n+3)*(n+1))
+        if np.all(remaining_term_bound < rel_tolerance * min_component):
+            break
+        
+        # Update variables
+        jx_to_n *= 1j*xx
+        abs_x_to_n_plus_1 *= np.abs(xx)
+        inv_factorial /= n + 1
+        
+    # If loop finished without converging, raise error
+    if n == MAX_TAYLOR_ITERATIONS:
+        raise RuntimeError(f"Lambda calculation failed to converge after {MAX_TAYLOR_ITERATIONS} iterations")
+    
+    return result
 
 def complex_pchip(xi: ArrayLike, zi: ArrayLike, x: ArrayLike, derivative_order: Union[int, Sequence[int]] = 0, axis: int = 0) -> np.ndarray:
     """Compute the piecewise cubic hermite interpolating polynomial (PCHIP) characterized by the points (xi, zi), where xi are real and zi are complex,
@@ -49,6 +116,7 @@ def complex_pchip(xi: ArrayLike, zi: ArrayLike, x: ArrayLike, derivative_order: 
         (pchip_interpolate(xi, np.real(zi), x, der=derivative_order, axis=axis)
         + 1j*pchip_interpolate(xi, np.imag(zi), x, der=derivative_order, axis=axis))
     )
+
 
 def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     """Calculates the Phi and Psi functions defined in equations E.142 and E.143 in [1], which are given by:
@@ -97,7 +165,7 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
     # Run convergence loop until phi and psi converged
     phi_converged = False
     psi_converged = False
-    for n in range(MAX_PHI_PSI_ITERATIONS+1):
+    for n in range(MAX_TAYLOR_ITERATIONS+1):
 
         # Stop loop if converged
         if phi_converged and psi_converged:
@@ -128,11 +196,11 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
 
     # If loop finished without converging, raise error
     if not (phi_converged and psi_converged):
-        raise RuntimeError(f"Phi and Psi calculation failed to converge after {MAX_PHI_PSI_ITERATIONS} iterations")
+        raise RuntimeError(f"Phi and Psi calculation failed to converge after {MAX_TAYLOR_ITERATIONS} iterations")
     
     return phi, psi
 
-def fourier_integral_inf_correction(
+def _fourier_integral_inf_correction(
     times: ArrayLike,
     omega_end: float,
     func_value_end: ArrayLike,
@@ -175,12 +243,13 @@ def fourier_integral_inf_correction(
     
     return sign * np.exp(1j*times*omega_end) * (1j*func_value_end/times - func_derivative_end/times**2)
 
-def fourier_integral_fixed_sampling_pchip(
+def fourier_integral_fixed_sampling(
     times: ArrayLike,
     frequencies: ArrayLike,
     func_values: ArrayLike,
     pos_inf_correction_term: bool,
-    neg_inf_correction_term: bool
+    neg_inf_correction_term: bool,
+    interpolation: str
 ) -> np.ndarray:
     """Calculates the fourier integral of a function for the time values given as input:
     
@@ -189,7 +258,8 @@ def fourier_integral_fixed_sampling_pchip(
     where t is the time, fmin is the first frequency in the input `frequencies`, fmax is either the highest frequency or (positive) infinity, depending on `inf_correction_term`,
     and func(f) is the input function of frequency. The function is given as an array of outputs corresponding to the array of frequencies given. 
     
-    A Filon type algorithm using a piecewise cubic Hermite interpolating polynomial (pchip) and optionally an asymptotic correction term at each end.
+    A Filon type algorithm using a either a piecewise cubic Hermite interpolating polynomial (pchip) or a piecewise linear polynomial, depending on the interpolation argument.
+    Optionally, an asymptotic correction term can also be computed at each end.
     For details on implementation, see [1].
 
     :param times: Float or 1D array of floats of length M, the time(s) [s]* to compute the fourier integral for
@@ -202,6 +272,8 @@ def fourier_integral_fixed_sampling_pchip(
     :type pos_inf_correction_term: bool
     :param neg_inf_correction_term: True if an asymptotic correction term towards -infinity should be added, otherwise the integral is effectively truncated at the lowest (closest to -inf) frequency
     :type neg_inf_correction_term: bool
+    :param interpolation: String either equal to "pchip" or "linear", to select the integration methods using PCHIP or piecewise linear interpolation, respectively.
+    :type interpolation: str
     :return: The fourier integral of the input function at the input times, given as an array of shape (M, X1, X2, ...)
     :rtype: np.ndarray
     
@@ -209,34 +281,49 @@ def fourier_integral_fixed_sampling_pchip(
     
     [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
     """
-
+    
+    assert interpolation in [mode.value for mode in InterpolationMode]
+    interpolation_mode = InterpolationMode(interpolation)
+    
     # Turn inputs into arrays if they are not already, switch to angular frequencies
     omegas = 2 * np.pi * np.asarray(frequencies)
     func_values = np.asarray(func_values)
     times = np.asarray(times)
     
-    # Set up result array
+    # Set up result array, shape (M, X1, X2, ...)
     result = np.zeros((len(times), *[axis_size for axis_size in func_values.shape[1:]]), dtype=complex)
 
-    # Calculate derivatives
-    func_derivatives = complex_pchip(omegas, func_values, omegas, derivative_order=1)
+    # Do mode specific setup
+    if interpolation_mode == InterpolationMode.PCHIP:
+        # Calculate derivatives
+        func_derivatives = complex_pchip(omegas, func_values, omegas, derivative_order=1)
+        func_derivative_high_end = func_derivatives[-1]
+        func_derivative_low_end = func_derivatives[0]
+        
+    elif interpolation_mode == InterpolationMode.LINEAR:
+        # Set derivative at end to 0
+        func_derivative_high_end = 0
+        func_derivative_low_end = 0
+
+    else:
+        raise NotImplementedError(f"This state should be unreachable. Need to implement derivative calculation for {interpolation_mode}")
     
     # Add asymptotic correction terms
     if pos_inf_correction_term:
-        result += fourier_integral_inf_correction(
+        result += _fourier_integral_inf_correction(
             times=times,
             omega_end=omegas[-1],
             func_value_end=func_values[-1],
-            func_derivative_end=func_derivatives[-1],
+            func_derivative_end=func_derivative_high_end,
             positive_inf=True
         )
         
     if neg_inf_correction_term:
-        result += fourier_integral_inf_correction(
+        result += _fourier_integral_inf_correction(
             times=times,
             omega_end=omegas[0],
             func_value_end=func_values[0],
-            func_derivative_end=func_derivatives[0],
+            func_derivative_end=func_derivative_low_end,
             positive_inf=False
         )
 
@@ -253,28 +340,64 @@ def fourier_integral_fixed_sampling_pchip(
     # Add time axis
     omegas = omegas[np.newaxis, ...]
     func_values = func_values[np.newaxis, ...]
-    func_derivatives = func_derivatives[np.newaxis, ...]
 
     # Add new axes for each axis of func_values except the frequency and time axes
     for _ in range(func_values.ndim - 2):
         omegas = omegas[..., np.newaxis]
         times = times[..., np.newaxis]
     
-    # Find deltas
+    
+    # Do the fourier integration
+    if interpolation_mode == InterpolationMode.PCHIP:
+        func_derivatives = func_derivatives[np.newaxis, ...] # Add time axis
+        result += _fourier_integral_fixed_sampling_pchip(times, omegas, func_values, func_derivatives)
+    
+    elif interpolation_mode == InterpolationMode.LINEAR:
+        result += _fourier_integral_fixed_sampling_linear(times, omegas, func_values)
+    
+    else:
+        raise NotImplementedError(f"This state should be unreachable. Need to implement fourier integral calculation for {interpolation_mode}")
+    
+    return result
+        
+
+def _fourier_integral_fixed_sampling_pchip(
+    times: np.ndarray,
+    omegas: np.ndarray,
+    func_values: np.ndarray,
+    func_derivatives: np.ndarray,
+) -> np.ndarray:
+    
+    # Calculate intermediate values
     delta_omegas = np.diff(omegas, axis=1)
     exp_omegas = np.exp(1j * omegas[:, :-1] * times)
-
     x = delta_omegas*times
-
     exp_x = np.exp(1j * x)
     phi_x, psi_x = _phi_and_psi(x)
     phi_minus_x, psi_minus_x = _phi_and_psi(-x)
 
-    result += np.sum(delta_omegas*exp_omegas*(
+    # Calculate integral by summing over frequency axis
+    result = np.sum(delta_omegas*exp_omegas*(
         func_values[:, :-1] * phi_minus_x * exp_x + 
         func_values[:, 1: ] * phi_x - 
         delta_omegas*func_derivatives[:, :-1] * psi_minus_x * exp_x + 
         delta_omegas*func_derivatives[:, 1: ] * psi_x
+    ), axis=1) # Sum over frequency axis
+
+    return result
+
+def _fourier_integral_fixed_sampling_linear(
+    times: np.ndarray,
+    omegas: np.ndarray,
+    func_values: np.ndarray
+) -> np.ndarray:
+    
+    delta_omegas = np.diff(omegas, axis=1)
+
+    # Calculate integral by summing over frequency axis
+    result = np.sum(delta_omegas*(
+        func_values[:, :-1]  * np.exp(1j*omegas[:, 1: ]*times) * _lambda(-delta_omegas*times)
+        + func_values[:, 1:] * np.exp(1j*omegas[:, :-1]*times) * _lambda( delta_omegas*times) 
     ), axis=1) # Sum over frequency axis
 
     return result
