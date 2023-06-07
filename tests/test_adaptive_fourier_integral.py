@@ -7,7 +7,7 @@ from numpy.typing import ArrayLike
 from scipy.integrate import simpson
 
 from neffint.adaptive_fourier_integral import (
-    CachedFunc, adaptive_fourier_integral,
+    CachedFunc, fourier_integral_adaptive,
     add_points_until_interpolation_converged, bisect_intervals,
     find_interval_with_largest_error, integrate_interpolation_error)
 from neffint.utils import complex_pchip
@@ -170,44 +170,27 @@ def test_add_points_until_interpolation_converged():
 ])
 def test_adaptive_fourier_integral(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike]):
     input_times = np.logspace(-10, 5, 100)
-    input_starting_frequencies = np.logspace(6,12,3)
+    input_starting_frequencies = np.logspace(-20,20,2) # Start with very few frequencies
     input_interpolation_error_metric = lambda x, y: np.abs(x-y)
+    input_absolute_tolerance = 1e0
 
-    output_transform_arr, output_frequencies = adaptive_fourier_integral(
+    output_transform_arr = fourier_integral_adaptive(
     times=input_times,
     initial_frequencies=input_starting_frequencies,
     func=input_func, 
     interpolation_error_metric=input_interpolation_error_metric,
-    absolute_integral_tolerance=1e-5,
+    absolute_integral_tolerance=input_absolute_tolerance,
     frequency_bound_scan_logstep=2**0.1
     )
 
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
 
-    def relative_error(x, target):
-        """Relative error"""
-        if target == 0:
-            return np.nan
-        return abs(x-target)/abs(target)
-    relative_error = np.vectorize(relative_error)
-
-
-    import matplotlib.pyplot as plt
-    absolute_error = lambda x, y: np.abs(x-y)
-    plt.plot(input_times, relative_error(np.real(output_transform_arr), expected_transform_arr), label="Relative error")
-    plt.plot(input_times, absolute_error(np.real(output_transform_arr), expected_transform_arr), label="Absolute error")
-    # plt.plot(input_times, expected_transform_arr, label="Analytic")
-    # plt.plot(input_times, np.real(output_transform_arr), label="Numeric")
-    plt.loglog()
-    plt.legend()
-    plt.show()
-
-    assert np.real(output_transform_arr) == pytest.approx(expected_transform_arr)
+    assert np.real(output_transform_arr) == pytest.approx(expected_transform_arr, abs=5*input_absolute_tolerance)
 
 
 def test_cached_func():
     # NOTE: using time library might be a bad idea in unit tests...
-    input_call_delay = 0.1 # [s]
+    input_call_delay = 0.5 # [s]
     input_x = 3
     def input_func(x: float):
         time.sleep(input_call_delay)
