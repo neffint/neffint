@@ -5,12 +5,12 @@ import numpy as np
 import pytest
 from numpy.typing import ArrayLike
 from scipy.integrate import simpson
-from scipy.interpolate import pchip_interpolate
 
 from neffint.adaptive_fourier_integral import (
     CachedFunc, adaptive_fourier_integral,
     add_points_until_interpolation_converged, bisect_intervals,
     find_interval_with_largest_error, integrate_interpolation_error)
+from neffint.utils import complex_pchip
 
 
 def test_bisect_intervals():
@@ -155,7 +155,7 @@ def test_add_points_until_interpolation_converged():
         absolute_error_tolerance=input_tolerance
     )
 
-    output_interpolation_on_fine_grid = pchip_interpolate(output_frequencies, output_func_values, input_finer_frequencies)
+    output_interpolation_on_fine_grid = complex_pchip(output_frequencies, output_func_values, input_finer_frequencies)
     expected_interpolation_on_fine_grid = func(input_finer_frequencies)
 
     # NOTE: Absolute tolerance here because that is used in the add_points... function itself

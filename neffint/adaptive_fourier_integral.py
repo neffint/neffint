@@ -18,10 +18,10 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 import numpy as np
 import sortednp
 from numpy.typing import ArrayLike
-from scipy.interpolate import pchip_interpolate
 
-from .fixed_grid_fourier_integral import (
-    fourier_integral_fixed_sampling_pchip, fourier_integral_inf_correction)
+from .fixed_grid_fourier_integral import (_fourier_integral_inf_correction,
+                                          fourier_integral_fixed_sampling)
+from .utils import complex_pchip
 
 # TODO: go over types
 # TODO: Write something about units in documentation
@@ -179,7 +179,7 @@ def find_interval_with_largest_error(
     # Note: From 2nd iteration and onwards, it would be slightly faster to only interpolate around the new point, but not much.
     # This approach then allows for much simpler code (i.e not having to pass arrays of midpoints and interpolations in and out of functions).
     # Benchmarking shows that this approach costs < 1 ms per iteration, which typically adds up to ~ 1 s for the entire algorithm
-    interpolated_values_at_midpoints = pchip_interpolate(xi=frequencies, yi=func_values, x=freq_midpoints, axis=0)
+    interpolated_values_at_midpoints = complex_pchip(xi=frequencies, zi=func_values, x=freq_midpoints, axis=0)
 
     # Find interpolation error at midpoints using a user defined function
     interpolation_error_at_midpoints = interpolation_error_metric(values_at_midpoints, interpolated_values_at_midpoints)
@@ -360,8 +360,8 @@ def adaptive_fourier_integral(
         absolute_error_tolerance=abs_bisection_tolerance/(2*np.pi) # Convert from angular units
     )
 
-    func_derivative_values = pchip_interpolate(frequencies, func_values, frequencies, der=1, axis=0)
-    integral_values = fourier_integral_fixed_sampling_pchip(times, frequencies, func_values, inf_correction_term=True)
+    func_derivative_values = complex_pchip(frequencies, func_values, frequencies, derivative_order=1, axis=0)
+    integral_values = fourier_integral_fixed_sampling(times, frequencies, func_values, inf_correction_term=True, interpolation="pchip")
 
     logging.info("Iteratively adding lower frequencies until convergence.")
 
@@ -373,10 +373,10 @@ def adaptive_fourier_integral(
         # Make a new frequency and calculate func and derivative
         frequencies = np.insert(frequencies, 0, frequencies[0]/low_frequency_scan_logstep)
         func_values = np.insert(func_values, 0, func(frequencies[0]), axis=0)
-        func_derivative_values = np.insert(func_derivative_values, 0, pchip_interpolate(frequencies[:3], func_values[:3], frequencies[0], der=1, axis=0), axis=0) # 3 values needed to compute pchip derivative
+        func_derivative_values = np.insert(func_derivative_values, 0, complex_pchip(frequencies[:3], func_values[:3], frequencies[0], derivative_order=1, axis=0), axis=0) # 3 values needed to compute pchip derivative
 
         # Calculate wake contribution from the new interval
-        new_integral_contributions = fourier_integral_fixed_sampling_pchip(times, frequencies[:2], func_values[:2], inf_correction_term=False)
+        new_integral_contributions = fourier_integral_fixed_sampling(times, frequencies[:2], func_values[:2], inf_correction_term=False, interpolation="pchip")
 
         # TODO: Allow for relative error
         integral_absolute_error = np.max(np.abs(new_integral_contributions))
@@ -395,11 +395,11 @@ def adaptive_fourier_integral(
         # Make a new frequency and calculate func and derivative
         frequencies = np.append(frequencies, high_frequency_scan_logstep*frequencies[-1])
         func_values = np.append(func_values, [func(frequencies[-1])], axis=0)
-        func_derivative_values = np.append(func_derivative_values, [pchip_interpolate(frequencies[-3:], func_values[-3:], frequencies[-1], der=1, axis=0)], axis=0)
+        func_derivative_values = np.append(func_derivative_values, [complex_pchip(frequencies[-3:], func_values[-3:], frequencies[-1], derivative_order=1, axis=0)], axis=0)
 
         new_integral_contributions = (
-            fourier_integral_fixed_sampling_pchip(times, frequencies[-2:], func_values[-2:], inf_correction_term=True)
-            - fourier_integral_inf_correction(times=times, omega_end=2*np.pi*frequencies[-2], func_value_end=func_values[-2], func_derivative_end=func_derivative_values[-2])
+            fourier_integral_fixed_sampling(times, frequencies[-2:], func_values[-2:], inf_correction_term=True, interpolation="pchip")
+            - _fourier_integral_inf_correction(times=times, omega_end=2*np.pi*frequencies[-2], func_value_end=func_values[-2], func_derivative_end=func_derivative_values[-2])
         )
 
         # TODO: Allow for relative error
