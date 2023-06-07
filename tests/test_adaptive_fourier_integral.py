@@ -168,7 +168,7 @@ def test_add_points_until_interpolation_converged():
     # ( lambda f: np.array([[1,2],[3,4]]) / np.sqrt( 2 * np.pi * f),  lambda t: np.array([[1,2],[3,4]]) * np.sqrt(np.pi / (2 * t)) ), # Test dimension handling
     ( lambda f: 1 / (1 + (2 * np.pi * f)**2),                       lambda t: np.pi / 2 * np.exp(-t) ),
 ])
-def test_adaptive_fourier_integral(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike]):
+def test_fourier_integral_adaptive(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike]):
     input_times = np.logspace(-10, 5, 100)
     input_starting_frequencies = np.logspace(-20,20,2) # Start with very few frequencies
     input_interpolation_error_metric = lambda x, y: np.abs(x-y)

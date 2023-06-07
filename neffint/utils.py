@@ -1,3 +1,5 @@
+from typing import Sequence, Union
+
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy.interpolate import pchip_interpolate
