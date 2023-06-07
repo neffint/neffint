@@ -12,11 +12,13 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+import logging
 from enum import Enum
-from typing import Sequence, Tuple, Union
+from typing import Tuple
 
 import numpy as np
 from numpy.typing import ArrayLike
+
 from .utils import complex_pchip
 
 MAX_TAYLOR_ITERATIONS = 1000
@@ -255,8 +257,13 @@ def fourier_integral_fixed_sampling(
     interpolation_mode = InterpolationMode(interpolation)
     
     # Turn inputs into arrays if they are not already, switch to angular frequencies
-    omegas = 2 * np.pi * np.asarray(frequencies)
-    func_values = np.asarray(func_values)
+    # Filter out infinities and nan's
+    isfinite = np.isfinite(frequencies) & np.isfinite(func_values)
+    if not np.all(isfinite):
+        logging.info("Removing infinite frequencies and values from arrays.")
+        
+    omegas = 2 * np.pi * np.asarray(frequencies[isfinite])
+    func_values = np.asarray(func_values[isfinite])
     times = np.asarray(times)
     
     # Set up result array, shape (M, X1, X2, ...)

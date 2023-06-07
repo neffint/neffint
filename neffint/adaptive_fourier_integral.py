@@ -28,6 +28,8 @@ from .utils import complex_pchip
 FuncOutputType = Any # TODO: reconsider func output type
 FuncType = Callable[[float], FuncOutputType]
 
+MAX_FREQUENCY = 1e60
+
 class CachedFunc:
     """Wrapper class around a function to cache function calls for faster evaluation of the function with the same arguments.
     """
@@ -65,7 +67,7 @@ def bisect_intervals(interval_endpoints: np.ndarray, linear_bisection_mask: np.n
     left_ends = interval_endpoints[:-1]
     right_ends = interval_endpoints[1:]
     
-    midpoints[~linear_bisection_mask] = np.sqrt(left_ends[~linear_bisection_mask] * right_ends[~linear_bisection_mask]) * np.sign(left_ends) # geometric/logarithmic mean
+    midpoints[~linear_bisection_mask] = np.sqrt(left_ends[~linear_bisection_mask] * right_ends[~linear_bisection_mask]) * np.sign(left_ends[~linear_bisection_mask]) # geometric/logarithmic mean
     midpoints[ linear_bisection_mask] =  1/2 * (left_ends[ linear_bisection_mask] + right_ends[ linear_bisection_mask]) # arithmetic mean
 
     # If the endpoints are +-infinity, "bisect" by multiplying the final finite point by a constant
@@ -73,7 +75,7 @@ def bisect_intervals(interval_endpoints: np.ndarray, linear_bisection_mask: np.n
         midpoints[0] = interval_endpoints[1]*logstep_towards_inf
     
     if interval_endpoints[-1] == np.inf:
-        midpoints[-1] == interval_endpoints[-2]*logstep_towards_inf
+        midpoints[-1] = interval_endpoints[-2]*logstep_towards_inf
 
     return midpoints
 
@@ -83,38 +85,46 @@ def integrate_interpolation_error(
     linear_bisection_mask: np.ndarray,
     interpolation_error_at_midpoints: np.ndarray,
     logstep_towards_inf: float,
-) -> Tuple[float, int]:
+) -> np.ndarray:
 
     left_ends = interval_endpoints[:-1]
     right_ends = interval_endpoints[1:]
 
-    interval_error = np.zeros_like(interpolation_error_at_midpoints)
+    interval_errors = np.zeros_like(interpolation_error_at_midpoints)
 
     # Logarithic Simpson's rule
     # Endpoints of intervals not included in formula, as they are interpolated exactly
     a =  left_ends[~linear_bisection_mask]
     b = right_ends[~linear_bisection_mask]
-    interval_error[~linear_bisection_mask] = 2/3 * np.sqrt(a*b) * np.sign(a) * np.log(b/a) * interpolation_error_at_midpoints[~linear_bisection_mask]
+    interval_errors[~linear_bisection_mask] = 2/3 * np.sqrt(a*b) * np.sign(a) * np.log(b/a) * interpolation_error_at_midpoints[~linear_bisection_mask]
 
     # Normal (linear) Simpson's rule
     # Endpoints of intervals not included in formula, as they are interpolated exactly
     a =  left_ends[ linear_bisection_mask]
     b = right_ends[ linear_bisection_mask]
-    interval_error[ linear_bisection_mask] = 2/3 * (b - a) * interpolation_error_at_midpoints[linear_bisection_mask]
+    interval_errors[ linear_bisection_mask] = 2/3 * (b - a) * interpolation_error_at_midpoints[linear_bisection_mask]
     
     if interval_endpoints[0] == -np.inf:
-        b = interval_endpoints[1]
-        # Create phantom point so that interval_error[0] corresponds to the geometric midpoint of a and b
-        a = b*logstep_towards_inf**2
-        interval_error[0] = 2/3 * np.sqrt(a*b) * np.sign(a) * np.log(b/a) * interpolation_error_at_midpoints[0]
+        if interval_endpoints[1] <= -MAX_FREQUENCY:
+            logging.info(f"Minimum frequency (-{MAX_FREQUENCY}) reached, not adding any lower frequencies.")
+            interval_errors[0] = 0
+        else:
+            b = interval_endpoints[1]
+            # Create phantom point so that interval_error[0] corresponds to the geometric midpoint of a and b
+            a = b*logstep_towards_inf**2
+            interval_errors[0] = 2/3 * np.sqrt(a*b) * np.sign(a) * np.log(b/a) * interpolation_error_at_midpoints[0]
     
     if interval_endpoints[-1] == np.inf:
-        a = interval_endpoints[-2]
-        # Create phantom point so that interval_error[0] corresponds to the geometric midpoint of a and b
-        b = a*logstep_towards_inf**2
-        interval_error[-1] = 2/3 * np.sqrt(a*b) * np.sign(a) * np.log(b/a) * interpolation_error_at_midpoints[-1]
+        if interval_endpoints[-2] >= MAX_FREQUENCY:
+            logging.info(f"Maximum frequency ({MAX_FREQUENCY}) reached, not adding any higher frequencies.")
+            interval_errors[-1] = 0
+        else:
+            a = interval_endpoints[-2]
+            # Create phantom point so that interval_error[0] corresponds to the geometric midpoint of a and b
+            b = a*logstep_towards_inf**2
+            interval_errors[-1] = 2/3 * np.sqrt(a*b) * np.sign(a) * np.log(b/a) * interpolation_error_at_midpoints[-1]
     
-    return interval_error
+    return interval_errors
 
 
 def find_interval_errors(
@@ -164,9 +174,10 @@ def improve_frequency_range(
     func: FuncType, 
     interpolation_error_metric: Callable[[np.ndarray, np.ndarray], np.ndarray],
     absolute_integral_tolerance: float,
-    logstep_towards_inf: float = 2**0.5,
-    bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]] = None
-    ) -> np.ndarray:
+    logstep_towards_inf: float = 2,
+    bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]] = None,
+    max_iterations: Optional[int] = None
+) -> np.ndarray:
     
     # NOTE: Could consider changing all insert and append to work in-place on a larger array. I.e. a dynamic array approach
 
@@ -181,6 +192,10 @@ def improve_frequency_range(
     # Similarly, if the last frequency is +inf and the second last is non-positive, insert the frequency `1`
     if frequencies[-1] == np.inf and frequencies[-2] <= 0:
         frequencies = np.insert(frequencies, -1, 1)
+
+    # Interpolation requires 2 finite frequencies to run
+    if sum(np.isfinite(frequencies)) < 2:
+        frequencies = np.union1d(frequencies, 2*frequencies)
 
     func = CachedFunc(func)
 
@@ -197,9 +212,14 @@ def improve_frequency_range(
     
     # Initialize with dummy value before while loop
     total_interpolation_error = np.inf
-
+    
+    k = 0
     while total_interpolation_error > absolute_integral_tolerance:
 
+        k += 1
+        if max_iterations is not None and k >= max_iterations:
+            break
+           
         midpoint_freqs, interval_interpolation_errors = find_interval_errors(
             frequencies=frequencies,
             func_values=func_values,
@@ -208,14 +228,14 @@ def improve_frequency_range(
             interpolation_error_metric=interpolation_error_metric,
             logstep_towards_inf=logstep_towards_inf,  
         )
-        
+         
         # Find total and max error
         total_interpolation_error = np.sum(interval_interpolation_errors)
         index_interval_max_error = np.argmax(interval_interpolation_errors)
         
         # Find midpoint frequency of highest interval error
         midpoint_freq_max_error = midpoint_freqs[index_interval_max_error]
-
+        
         logging.info(f"Largest error in interval {index_interval_max_error} between frequencies"
                      f"{frequencies[index_interval_max_error]} and {frequencies[index_interval_max_error+1]}.\n"
                      f"Integrated interpolation error: {total_interpolation_error}\n"
@@ -242,9 +262,10 @@ def fourier_integral_adaptive(
     interpolation_error_metric: Callable[[np.ndarray, np.ndarray], np.ndarray],
     absolute_integral_tolerance: float,
     interpolation: str = "pchip",
-    logstep_towards_inf: float = 2**0.5,
-    bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]] = None
-    ) -> np.ndarray:
+    logstep_towards_inf: float = 2,
+    bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]] = None,
+    max_iterations: Optional[int] = None,
+) -> np.ndarray:
     
     frequencies, func_values = improve_frequency_range(
         initial_frequencies=initial_frequencies,
@@ -252,7 +273,8 @@ def fourier_integral_adaptive(
         interpolation_error_metric=interpolation_error_metric,
         absolute_integral_tolerance=absolute_integral_tolerance,
         logstep_towards_inf=logstep_towards_inf,
-        bisection_mode_condition=bisection_mode_condition
+        bisection_mode_condition=bisection_mode_condition,
+        max_iterations=max_iterations
     )
     
     return fourier_integral_fixed_sampling(
