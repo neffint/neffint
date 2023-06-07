@@ -26,6 +26,8 @@ class CachedFunc:
 
 
 def bisect_intervals(interval_endpoints: np.ndarray, linear_bisection_mask: np.ndarray) -> np.ndarray:
+    # NOTE: With normal (static) numpy arrays, testing shows it is faster to recalculate all midpoints
+    # than to calculate one midpoint and insert into an array of existing midpoints
     midpoints = np.zeros(len(interval_endpoints)-1)
 
     left_ends = interval_endpoints[:-1]
@@ -69,13 +71,13 @@ def integrate_interpolation_error(
 def find_interval_with_largest_error(
     frequencies: np.ndarray,
     func_values: np.ndarray,
-    bisection_mode_condition: Callable[[np.ndarray], np.ndarray],
+    linear_bisection_condition: Callable[[np.ndarray], np.ndarray],
     func: FuncType,
     interpolation_error_metric: Callable[[FuncOutputType, np.ndarray], float]
 ) -> Tuple[np.ndarray, int, float]:
     
     # Make mask array where True indicates that the bisection of the interval of the same index should be done linearly
-    linear_bisection_mask = bisection_mode_condition(frequencies[:-1])
+    linear_bisection_mask = linear_bisection_condition(frequencies[:-1])
 
     # Bisect all intervals either arithmetically or geometrically depending on frequency
     freq_midpoints = bisect_intervals(frequencies, linear_bisection_mask)
@@ -85,12 +87,13 @@ def find_interval_with_largest_error(
 
     # Interpolate func at bisections using pchip
     # TODO: same for linear interp?
-    # Note: From 2nd iteration and onwards, it is slightly faster to only interpolate around the new point, but not much.
+    # Note: From 2nd iteration and onwards, it would be slightly faster to only interpolate around the new point, but not much.
     # This approach then allows for much simpler code.
+    # Benchmarking shows that this approach costs < 1 ms per iteration, which typically adds up to ~ 1 s for the entire algorithm
     interpolated_values_at_midpoints = pchip_interpolate(xi=frequencies, yi=func_values, x=freq_midpoints, axis=0)
 
     # Find interpolation error at midpoints using a user defined function
-    interpolation_error_at_midpoints = np.array([interpolation_error_metric(values_at_midpoints[i], interpolated_values_at_midpoints[i]) for i in range(len(freq_midpoints))])
+    interpolation_error_at_midpoints = interpolation_error_metric(values_at_midpoints, interpolated_values_at_midpoints)
 
     # Integrate the interpolation error over the frequency range, find midpoint frequency of the interval with largest error
     total_interpolation_error, index_max_error_interval = integrate_interpolation_error(frequencies, linear_bisection_mask, interpolation_error_at_midpoints)
@@ -104,7 +107,7 @@ def add_points_until_interpolation_converged(
         func: FuncType,
         bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]],
         interpolation_error_metric: Callable[[np.ndarray, np.ndarray], np.ndarray],
-        bisection_tolerance: float
+        absolute_error_tolerance: float
     ):
 
     logging.info(f"Starting adaptive bisection algorithm of frequency range: {starting_frequencies[0]} to {starting_frequencies[-1]}, "
@@ -118,7 +121,7 @@ def add_points_until_interpolation_converged(
     
     total_interpolation_error = np.inf
 
-    while total_interpolation_error > bisection_tolerance:
+    while total_interpolation_error > absolute_error_tolerance:
 
         midpoint_freqs, index_freq_largest_error, total_interpolation_error = find_interval_with_largest_error(frequencies, func_values, bisection_mode_condition, func, interpolation_error_metric)
         midpoint_freq_interval_largest_error = midpoint_freqs[index_freq_largest_error]
@@ -153,8 +156,7 @@ def adaptive_fourier_integral(
 
     # TODO: rename and move
     # TODO: Multiply by pi to denormalize
-    bisection_tolerance = 1e-3
-    relative_wake_tolerance = 1e-8
+    absolute_integral_tolerance = 1e-3
 
     # Starting frequencies
     frequencies = np.asarray(initial_frequencies)
@@ -174,7 +176,7 @@ def adaptive_fourier_integral(
         func=func,
         bisection_mode_condition=bisection_mode_condition,
         interpolation_error_metric=interpolation_error_metric,
-        bisection_tolerance=bisection_tolerance
+        absolute_error_tolerance=absolute_integral_tolerance
     )
 
     func_derivative_values = pchip_interpolate(frequencies, func_values, frequencies, der=1, axis=0)
@@ -184,8 +186,8 @@ def adaptive_fourier_integral(
 
     # Loop to converge on low enough first frequency. Skip if first frequency is 0
     # TODO: Consider moving while loop to its own function
-    integral_relative_error = np.inf
-    while integral_relative_error > relative_wake_tolerance:
+    integral_absolute_error = np.inf
+    while integral_absolute_error > absolute_integral_tolerance and frequencies[0] > 0:
 
         # Make a new frequency and calculate func and derivative
         frequencies = np.insert(frequencies, 0, frequencies[0]/2**0.2) # TODO: reconsider magic number 2 here
@@ -195,20 +197,19 @@ def adaptive_fourier_integral(
         # Calculate wake contribution from the new interval
         new_integral_contributions = fourier_integral_fixed_sampling_pchip(times, frequencies[:2], func_values[:2], inf_correction_term=False)
 
-        # TODO: Allow for absolute error in addition to relative?
-        # TODO: Remove magic mode
-        integral_relative_error = max_relative_error(integral_values + new_integral_contributions, integral_values, mode="abs")
+        # TODO: Allow for relative error
+        integral_absolute_error = np.max(np.abs(new_integral_contributions))
 
         integral_values += new_integral_contributions
 
-        logging.info(f"New lowest frequency: {frequencies[0]}\nFourier integral relative error between last two iterations: {integral_relative_error}")
+        logging.info(f"New lowest frequency: {frequencies[0]}\nFourier integral relative error between last two iterations: {integral_absolute_error}")
     
     logging.info("Iteratively adding higher frequencies until convergence.")
 
     # Loop to converge on low enough first frequency
     # TODO: As above, consider moving while loop to its own function
-    integral_relative_error = np.inf
-    while integral_relative_error > relative_wake_tolerance:
+    integral_absolute_error = np.inf
+    while integral_absolute_error > absolute_integral_tolerance:
         
         # Make a new frequency and calculate func and derivative
         frequencies = np.append(frequencies, 2*frequencies[-1]) # TODO reconsider magic 2 here
@@ -220,32 +221,11 @@ def adaptive_fourier_integral(
             - fourier_integral_inf_correction(times=times, omega_end=2*np.pi*frequencies[-2], func_value_end=func_values[-2], func_derivative_end=func_derivative_values[-2])
         )
 
-        # TODO: Allow for absolute error in addition to relative?
-        # TODO: Remove magic mode
-        integral_relative_error = max_relative_error(integral_values + new_integral_contributions, integral_values, mode="abs")
+        # TODO: Allow for relative error
+        integral_absolute_error = np.max(np.abs(new_integral_contributions))
 
         integral_values += new_integral_contributions
 
-        logging.info(f"New highest frequency: {frequencies[-1]}\nFourier integral relative error between last two iterations: {integral_relative_error}")
+        logging.info(f"New highest frequency: {frequencies[-1]}\nFourier integral relative error between last two iterations: {integral_absolute_error}")
 
     return integral_values, frequencies
-
-
-def _max_relative_error_kernel(x: np.ndarray, reference: np.ndarray):
-    return np.max( np.abs((x - reference) / reference)  )
-
-
-def max_relative_error(x: np.ndarray, reference: np.ndarray, mode: str) -> float:
-    # TODO: add index return if necessary
-    if mode == "abs":
-        return _max_relative_error_kernel(np.abs(x), np.abs(reference))
-    elif mode == "real":
-        return _max_relative_error_kernel(np.real(x), np.real(reference))
-    elif mode == "imag":
-        return _max_relative_error_kernel(np.imag(x), np.imag(reference))
-    elif mode == "realimag":
-        max_real_error = _max_relative_error_kernel(np.real(x), np.real(reference))
-        max_imag_error = _max_relative_error_kernel(np.imag(x), np.imag(reference))
-        return max(max_real_error, max_imag_error)
-    else:
-        raise ValueError(f"{mode} is not a valid mode. Use one of: 'abs', 'real', 'imag' or 'realimag'.")

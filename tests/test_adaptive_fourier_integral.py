@@ -10,8 +10,7 @@ from scipy.interpolate import pchip_interpolate
 from neffint.adaptive_fourier_integral import (
     CachedFunc, adaptive_fourier_integral,
     add_points_until_interpolation_converged, bisect_intervals,
-    find_interval_with_largest_error, integrate_interpolation_error,
-    max_relative_error)
+    find_interval_with_largest_error, integrate_interpolation_error)
 
 
 def test_bisect_intervals():
@@ -117,7 +116,7 @@ def test_find_interval_with_largest_error():
     output_midpoint_freqs, output_max_error_interval_idx, output_total_interpolation_error = find_interval_with_largest_error(
         frequencies=input_frequencies,
         func_values=func(input_frequencies),
-        bisection_mode_condition=input_bisection_mode_condition,
+        linear_bisection_condition=input_bisection_mode_condition,
         func=func,
         interpolation_error_metric=input_error_metric
     )
@@ -153,7 +152,7 @@ def test_add_points_until_interpolation_converged():
         func=func,
         bisection_mode_condition=input_bisection_mode_condition,
         interpolation_error_metric=error_metric,
-        bisection_tolerance=input_tolerance
+        absolute_error_tolerance=input_tolerance
     )
 
     output_interpolation_on_fine_grid = pchip_interpolate(output_frequencies, output_func_values, input_finer_frequencies)
@@ -227,18 +226,3 @@ def test_cached_func():
     assert output_result_first == output_result_second
     assert duration_first >= input_call_delay
     assert duration_second < input_call_delay
-
-
-@pytest.mark.parametrize(("mode", "expected_max_error"),[
-    ("real", 4/3),    # (7-3)/3
-    ("imag", 5/4),    # (9-4)/4
-    ("abs", 1),       # (10-5)/5
-    ("realimag", 4/3) # same as real
-])
-def test_max_relative_error(mode: str, expected_max_error: float):
-    input_array = np.array([7, 9j, 6+8j])
-    input_reference = (3+4j) * np.ones_like(input_array)
-
-    output_max_error = max_relative_error(input_array, input_reference, mode=mode)
-
-    assert output_max_error == pytest.approx(expected_max_error)
