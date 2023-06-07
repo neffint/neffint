@@ -13,7 +13,7 @@
 #    limitations under the License.
 
 import logging
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import sortednp
@@ -165,16 +165,16 @@ def adaptive_fourier_integral(
     initial_frequencies: Sequence,
     func: FuncType, 
     interpolation_error_metric: Callable[[np.ndarray, np.ndarray], np.ndarray],
-    absolute_integral_tolerance: float = 1e-3,
-    frequency_bound_scan_logstep: float = 2*(1/5),
+    absolute_integral_tolerance: Union[float, Sequence[float]] = 1e-3,
+    frequency_bound_scan_logstep: Union[float, Sequence[float]] = 2**(1/5),
     bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]] = None
     ) -> np.ndarray:
     # TODO: Consider changing all insert and append to work in-place on a larger array. I.e. a dynamic array approach
 
     # Starting frequencies
     frequencies = np.asarray(initial_frequencies)
-    assert len(frequencies) >= 2
-    assert np.all(frequencies >= 0) # TODO: Implement negative frequency support
+    assert len(frequencies) >= 2, "Need more than 1 frequency to integrate over"
+    assert np.all(frequencies >= 0), "All frequencies must be positive" # TODO: Implement negative frequency support
     
     times = np.asarray(times)
 
@@ -182,6 +182,25 @@ def adaptive_fourier_integral(
 
     # Set up sorted array of func outputs
     func_values = np.array([func(freq) for freq in frequencies])
+    
+    if isinstance(absolute_integral_tolerance, (int, float)):
+        abs_bisection_tolerance = abs_lowscan_tolerance = abs_highscan_tolerance = absolute_integral_tolerance
+    elif len(absolute_integral_tolerance) == 1:
+        abs_bisection_tolerance = abs_lowscan_tolerance = abs_highscan_tolerance = absolute_integral_tolerance[0]
+    elif len(absolute_integral_tolerance) == 3:
+        abs_bisection_tolerance, abs_lowscan_tolerance, abs_highscan_tolerance = absolute_integral_tolerance
+    else:
+        raise ValueError("Need either 1 or 3 values for absolute_integral_tolerance.")
+    
+    if isinstance(frequency_bound_scan_logstep, (int, float)):
+        low_frequency_scan_logstep = high_frequency_scan_logstep = frequency_bound_scan_logstep
+    elif len(frequency_bound_scan_logstep) == 1:
+        low_frequency_scan_logstep = high_frequency_scan_logstep = frequency_bound_scan_logstep[0]
+    elif len(frequency_bound_scan_logstep) == 2:
+        low_frequency_scan_logstep, high_frequency_scan_logstep = frequency_bound_scan_logstep
+    else:
+        raise ValueError("Need either 1 or 3 values for absolute_integral_tolerance.")
+    
 
     frequencies, func_values = add_points_until_interpolation_converged(
         starting_frequencies=frequencies,
@@ -189,7 +208,7 @@ def adaptive_fourier_integral(
         func=func,
         bisection_mode_condition=bisection_mode_condition,
         interpolation_error_metric=interpolation_error_metric,
-        absolute_error_tolerance=absolute_integral_tolerance/(2*np.pi) # Convert from angular units
+        absolute_error_tolerance=abs_bisection_tolerance/(2*np.pi) # Convert from angular units
     )
 
     func_derivative_values = pchip_interpolate(frequencies, func_values, frequencies, der=1, axis=0)
@@ -200,10 +219,10 @@ def adaptive_fourier_integral(
     # Loop to converge on low enough first frequency. Skip if first frequency is 0
     # TODO: Consider moving while loop to its own function
     integral_absolute_error = np.inf
-    while integral_absolute_error > absolute_integral_tolerance and frequencies[0] > 0:
+    while integral_absolute_error > abs_lowscan_tolerance and frequencies[0] > 0:
 
         # Make a new frequency and calculate func and derivative
-        frequencies = np.insert(frequencies, 0, frequencies[0]/frequency_bound_scan_logstep)
+        frequencies = np.insert(frequencies, 0, frequencies[0]/low_frequency_scan_logstep)
         func_values = np.insert(func_values, 0, func(frequencies[0]), axis=0)
         func_derivative_values = np.insert(func_derivative_values, 0, pchip_interpolate(frequencies[:3], func_values[:3], frequencies[0], der=1, axis=0), axis=0) # 3 values needed to compute pchip derivative
 
@@ -222,10 +241,10 @@ def adaptive_fourier_integral(
     # Loop to converge on low enough first frequency
     # TODO: As above, consider moving while loop to its own function
     integral_absolute_error = np.inf
-    while integral_absolute_error > absolute_integral_tolerance:
+    while integral_absolute_error > abs_highscan_tolerance:
         
         # Make a new frequency and calculate func and derivative
-        frequencies = np.append(frequencies, frequency_bound_scan_logstep*frequencies[-1])
+        frequencies = np.append(frequencies, high_frequency_scan_logstep*frequencies[-1])
         func_values = np.append(func_values, [func(frequencies[-1])], axis=0)
         func_derivative_values = np.append(func_derivative_values, [pchip_interpolate(frequencies[-3:], func_values[-3:], frequencies[-1], der=1, axis=0)], axis=0)
 
