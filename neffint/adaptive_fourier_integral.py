@@ -6,7 +6,7 @@ import sortednp
 from numpy.typing import ArrayLike
 from scipy.interpolate import pchip_interpolate
 
-from .fixed_grid_fourier_integral import fourier_integral_fixed_sampling_pchip
+from .fixed_grid_fourier_integral import fourier_integral_fixed_sampling_pchip, fourier_integral_inf_correction
 
 # TODO: go over types
 # TODO: Write something about units in documentation
@@ -144,12 +144,12 @@ def add_points_until_interpolation_converged(
 
 def adaptive_fourier_integral(
     times: ArrayLike,
-    initial_frequency_range: Sequence,
+    initial_frequencies: Sequence,
     func: FuncType, 
     interpolation_error_metric: Callable[[np.ndarray, np.ndarray], np.ndarray],
     bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]] = None
     ) -> np.ndarray:
-    # TODO: Consider changing all insert and append to work in-place on a larger array
+    # TODO: Consider changing all insert and append to work in-place on a larger array. I.e. a dynamic array approach
 
     # TODO: rename and move
     # TODO: Multiply by pi to denormalize
@@ -157,9 +157,11 @@ def adaptive_fourier_integral(
     relative_wake_tolerance = 1e-8
 
     # Starting frequencies
-    frequencies = np.array(initial_frequency_range)
+    frequencies = np.asarray(initial_frequencies)
     assert len(frequencies) >= 2
-    assert np.all(frequencies > 0) # TODO: Implement negative frequency support
+    assert np.all(frequencies >= 0) # TODO: Implement negative frequency support
+    
+    times = np.asarray(times)
 
     func = CachedFunc(func)
 
@@ -180,6 +182,7 @@ def adaptive_fourier_integral(
 
     logging.info("Iteratively adding lower frequencies until convergence.")
 
+    # Loop to converge on low enough first frequency. Skip if first frequency is 0
     # TODO: Consider moving while loop to its own function
     integral_relative_error = np.inf
     while integral_relative_error > relative_wake_tolerance:
@@ -202,6 +205,7 @@ def adaptive_fourier_integral(
     
     logging.info("Iteratively adding higher frequencies until convergence.")
 
+    # Loop to converge on low enough first frequency
     # TODO: As above, consider moving while loop to its own function
     integral_relative_error = np.inf
     while integral_relative_error > relative_wake_tolerance:
@@ -213,7 +217,7 @@ def adaptive_fourier_integral(
 
         new_integral_contributions = (
             fourier_integral_fixed_sampling_pchip(times, frequencies[-2:], func_values[-2:], inf_correction_term=True)
-            - fourier_integral_fixed_sampling_pchip(times, [frequencies[-2]], [func_values[-2]], inf_correction_term=True) # TODO: clean up this ugly indexing
+            - fourier_integral_inf_correction(times=times, omega_end=2*np.pi*frequencies[-2], func_value_end=func_values[-2], func_derivative_end=func_derivative_values[-2])
         )
 
         # TODO: Allow for absolute error in addition to relative?

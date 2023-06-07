@@ -176,7 +176,7 @@ def test_adaptive_fourier_integral(input_func: Callable[[ArrayLike], ArrayLike],
 
     output_transform_arr, output_frequencies = adaptive_fourier_integral(
     times=input_times,
-    initial_frequency_range=input_starting_frequencies,
+    initial_frequencies=input_starting_frequencies,
     func=input_func, 
     interpolation_error_metric=input_interpolation_error_metric,
     )
