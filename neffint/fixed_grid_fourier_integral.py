@@ -258,7 +258,7 @@ def fourier_integral_fixed_sampling(
     
     # Turn inputs into arrays if they are not already, switch to angular frequencies
     # Filter out infinities and nan's
-    isfinite = np.isfinite(frequencies) & np.isfinite(func_values)
+    isfinite = np.isfinite(frequencies) & np.all(np.isfinite(func_values), axis=tuple(range(1, len(func_values.shape))))
     if not np.all(isfinite):
         logging.info("Removing infinite frequencies and values from arrays.")
         
