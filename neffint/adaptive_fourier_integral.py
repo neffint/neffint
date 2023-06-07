@@ -150,13 +150,11 @@ def adaptive_fourier_integral(
     initial_frequencies: Sequence,
     func: FuncType, 
     interpolation_error_metric: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    absolute_integral_tolerance: float = 1e-3,
+    frequency_bound_scan_logstep: float = 2*(1/5),
     bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]] = None
     ) -> np.ndarray:
     # TODO: Consider changing all insert and append to work in-place on a larger array. I.e. a dynamic array approach
-
-    # TODO: rename and move
-    # TODO: Multiply by pi to denormalize
-    absolute_integral_tolerance = 1e-3
 
     # Starting frequencies
     frequencies = np.asarray(initial_frequencies)
@@ -176,7 +174,7 @@ def adaptive_fourier_integral(
         func=func,
         bisection_mode_condition=bisection_mode_condition,
         interpolation_error_metric=interpolation_error_metric,
-        absolute_error_tolerance=absolute_integral_tolerance
+        absolute_error_tolerance=absolute_integral_tolerance/(2*np.pi) # Convert from angular units
     )
 
     func_derivative_values = pchip_interpolate(frequencies, func_values, frequencies, der=1, axis=0)
@@ -190,7 +188,7 @@ def adaptive_fourier_integral(
     while integral_absolute_error > absolute_integral_tolerance and frequencies[0] > 0:
 
         # Make a new frequency and calculate func and derivative
-        frequencies = np.insert(frequencies, 0, frequencies[0]/2**0.2) # TODO: reconsider magic number 2 here
+        frequencies = np.insert(frequencies, 0, frequencies[0]/frequency_bound_scan_logstep)
         func_values = np.insert(func_values, 0, func(frequencies[0]), axis=0)
         func_derivative_values = np.insert(func_derivative_values, 0, pchip_interpolate(frequencies[:3], func_values[:3], frequencies[0], der=1, axis=0), axis=0) # 3 values needed to compute pchip derivative
 
@@ -212,7 +210,7 @@ def adaptive_fourier_integral(
     while integral_absolute_error > absolute_integral_tolerance:
         
         # Make a new frequency and calculate func and derivative
-        frequencies = np.append(frequencies, 2*frequencies[-1]) # TODO reconsider magic 2 here
+        frequencies = np.append(frequencies, frequency_bound_scan_logstep*frequencies[-1])
         func_values = np.append(func_values, [func(frequencies[-1])], axis=0)
         func_derivative_values = np.append(func_derivative_values, [pchip_interpolate(frequencies[-3:], func_values[-3:], frequencies[-1], der=1, axis=0)], axis=0)
 

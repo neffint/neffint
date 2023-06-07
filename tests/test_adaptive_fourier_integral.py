@@ -171,13 +171,15 @@ def test_add_points_until_interpolation_converged():
 def test_adaptive_fourier_integral(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike]):
     input_times = np.logspace(-10, 5, 100)
     input_starting_frequencies = np.logspace(6,12,3)
-    input_interpolation_error_metric = lambda x, y: np.max(np.abs(x-y))
+    input_interpolation_error_metric = lambda x, y: np.abs(x-y)
 
     output_transform_arr, output_frequencies = adaptive_fourier_integral(
     times=input_times,
     initial_frequencies=input_starting_frequencies,
     func=input_func, 
     interpolation_error_metric=input_interpolation_error_metric,
+    absolute_integral_tolerance=1e-5,
+    frequency_bound_scan_logstep=2**0.1
     )
 
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
@@ -200,7 +202,7 @@ def test_adaptive_fourier_integral(input_func: Callable[[ArrayLike], ArrayLike],
     plt.legend()
     plt.show()
 
-    assert np.real(output_transform_arr) == pytest.approx(expected_transform_arr, 1e-4)
+    assert np.real(output_transform_arr) == pytest.approx(expected_transform_arr)
 
 
 def test_cached_func():
