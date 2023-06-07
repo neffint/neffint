@@ -8,7 +8,8 @@ PY_VERSION_REQUIRED = ">=3.7"
 PACKAGES_REQUIRED = {
     "core": [
         "numpy",
-        "scipy"
+        "scipy",
+        "sortednp"
     ],
     "test":[
         "pytest"
@@ -31,4 +32,4 @@ setup(
     python_requires=PY_VERSION_REQUIRED,
     install_requires=PACKAGES_REQUIRED["core"],
     extras_require=PACKAGES_REQUIRED
-    )
+)
