@@ -54,7 +54,7 @@ class CachedFunc:
         return self.cache[x]
 
 
-def bisect_intervals(interval_endpoints: np.ndarray, linear_bisection_mask: np.ndarray, logstep_towards_inf: float) -> np.ndarray:
+def _bisect_intervals(interval_endpoints: np.ndarray, linear_bisection_mask: np.ndarray, logstep_towards_inf: float) -> np.ndarray:
     """Bisect the intervals between elements of `interval_endpoints`
     
     The bisection is done either using the arithmetic or geometric mean of two neighboring points in `interval_endpoint`. Which type depends on `linear_bisection_mask`.
@@ -94,7 +94,7 @@ def bisect_intervals(interval_endpoints: np.ndarray, linear_bisection_mask: np.n
     return midpoints
 
 
-def integrate_interpolation_error(
+def _integrate_interpolation_error(
     interval_endpoints: np.ndarray,
     linear_bisection_mask: np.ndarray,
     interpolation_error_at_midpoints: np.ndarray,
@@ -166,7 +166,7 @@ def integrate_interpolation_error(
     return interval_errors
 
 
-def find_interval_errors(
+def _find_interval_errors(
     frequencies: np.ndarray,
     func_values: np.ndarray,
     func: Callable[[float], ArrayLike],
@@ -210,7 +210,7 @@ def find_interval_errors(
     linear_bisection_mask |= (frequencies[:-1]*frequencies[1:] <= 0)
 
     # Bisect all intervals either arithmetically or geometrically depending on frequency
-    freq_midpoints = bisect_intervals(frequencies, linear_bisection_mask, logstep_towards_inf=logstep_towards_inf)
+    freq_midpoints = _bisect_intervals(frequencies, linear_bisection_mask, logstep_towards_inf=logstep_towards_inf)
     
     # Compute func at bisections
     # TODO: Add possibility to disable points such as 0
@@ -231,7 +231,7 @@ def find_interval_errors(
     # TODO: Treat inf and nan values of interpolation_error_at_midpoints
 
     # Integrate the interpolation error over the frequency range, find midpoint frequency of the interval with largest error
-    interval_errors = integrate_interpolation_error(frequencies, linear_bisection_mask, interpolation_error_at_midpoints, logstep_towards_inf)
+    interval_errors = _integrate_interpolation_error(frequencies, linear_bisection_mask, interpolation_error_at_midpoints, logstep_towards_inf)
 
     return freq_midpoints, interval_errors
 
@@ -336,7 +336,7 @@ def improve_frequency_range(
         if max_iterations is not None and k >= max_iterations:
             break
            
-        midpoint_freqs, interval_interpolation_errors = find_interval_errors(
+        midpoint_freqs, interval_interpolation_errors = _find_interval_errors(
             frequencies=frequencies,
             func_values=func_values,
             func=func,

@@ -6,11 +6,11 @@ import pytest
 from numpy.typing import ArrayLike
 from scipy.integrate import simpson
 
-from neffint.adaptive_fourier_integral import (CachedFunc, bisect_intervals,
-                                               find_interval_errors,
+from neffint.adaptive_fourier_integral import (CachedFunc, _bisect_intervals,
+                                               _find_interval_errors,
                                                fourier_integral_adaptive,
                                                improve_frequency_range,
-                                               integrate_interpolation_error)
+                                               _integrate_interpolation_error)
 from neffint.utils import complex_pchip
 
 
@@ -21,7 +21,7 @@ def test_bisect_intervals():
 
     expected_midpoints = np.array([-10, -3.5, -np.sqrt(2), -0.5, 0.5, np.sqrt(4), 8])
     
-    output_midpoints = bisect_intervals(
+    output_midpoints = _bisect_intervals(
         interval_endpoints=input_interval_endpoints,
         linear_bisection_mask=input_linear_bisection_mask,
         logstep_towards_inf=input_logstep_towards_inf
@@ -33,7 +33,7 @@ def test_bisect_intervals():
 def test_integrate_interpolation_error_linear():
     input_x = np.array([1., 2., 3., 5.]) # [1,5], uneven spacing
     input_linear_bisection_mask = np.array([True]*3) # all linear bisection
-    input_midpoint_frequencies = bisect_intervals(
+    input_midpoint_frequencies = _bisect_intervals(
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
         logstep_towards_inf=2 # Not relevant for this test
@@ -56,7 +56,7 @@ def test_integrate_interpolation_error_linear():
     # Also, since in this case func is always larger than or equal to the interpolating function, we can complete the integrals first and then take their difference
     expected_interpolation_error_by_inteval = np.abs(expected_func_integral_by_interval - expected_interpolation_integral_by_interval)
 
-    output_interpolation_error_by_interval = integrate_interpolation_error(
+    output_interpolation_error_by_interval = _integrate_interpolation_error(
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
         interpolation_error_at_midpoints=input_interpolation_error,
@@ -69,7 +69,7 @@ def test_integrate_interpolation_error_linear():
 def test_integrate_interpolation_error_logarithmic():
     input_x = np.exp(np.array([1., 2., 3., 5.]))
     input_linear_bisection_mask = np.array([False]*3) # all logarithmic
-    input_midpoint_frequencies = bisect_intervals(
+    input_midpoint_frequencies = _bisect_intervals(
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
         logstep_towards_inf=2 # Not relevant for this test
@@ -99,7 +99,7 @@ def test_integrate_interpolation_error_logarithmic():
     # the difference of the integrals as opposed to the integral of the differences
     expected_interpolation_error_by_interval = np.abs(expected_func_integral_by_interval - expected_interpolation_integral_by_interval)
 
-    output_interpolation_error_by_interval = integrate_interpolation_error(
+    output_interpolation_error_by_interval = _integrate_interpolation_error(
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
         interpolation_error_at_midpoints=input_interpolation_error,
@@ -131,7 +131,7 @@ def test_find_interval_errors():
     input_error_metric = lambda func_vals, interp_vals: np.abs(func_vals - interp_vals)
 
 
-    output_midpoint_frequencies, output_interpolation_error_by_interval = find_interval_errors(
+    output_midpoint_frequencies, output_interpolation_error_by_interval = _find_interval_errors(
         frequencies=input_frequencies,
         func_values=func(input_frequencies),
         func=func,
