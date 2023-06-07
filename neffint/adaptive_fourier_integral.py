@@ -13,7 +13,7 @@
 #    limitations under the License.
 
 import logging
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import sortednp
@@ -22,36 +22,32 @@ from numpy.typing import ArrayLike
 from .fixed_grid_fourier_integral import fourier_integral_fixed_sampling
 from .utils import complex_pchip
 
-# TODO: go over types
-# TODO: Write something about units in documentation
-
-FuncOutputType = Any # TODO: reconsider func output type
-FuncType = Callable[[float], FuncOutputType]
-
 MAX_FREQUENCY = 1e60
 
 class CachedFunc:
     """Wrapper class around a function to cache function calls for faster evaluation of the function with the same arguments.
     """
     
-    def __init__(self, function: FuncType):
+    def __init__(self, function: Callable[[float], ArrayLike]):
         """Create a wrapper around the input function that saves function calls in a dictionary for faster reevaluation with the same argument.
 
         :param function: The function to be wrapped. Must be a function of one parameter, which must be hashable.
-        :type function: Callable
-        """ # TODO: Look over types in docstring
+        :type function: Callable[[float], ArrayLike]
+        """
         
         self.function = function
-        self.cache: Dict[float, FuncOutputType] = dict()
+        self.cache: Dict[float, ArrayLike] = dict()
     
-    def __call__(self, x: float) -> FuncOutputType:
-        """Evaluate func, defaulting to looking up the input variable x in the dictionary of cached calls,
+    def __call__(self, x: float) -> ArrayLike:
+        """Evaluate func
+        
+        Defaults to looking up the input variable x in the dictionary of cached calls,
         then evaluates the function itself if no cached output was stored for that input.
 
         :param x: The input variable of the wrapped function
         :type x: float
         :return: The outputs of the wrapped function for the given input
-        :rtype: FuncOutputType
+        :rtype: ArrayLike
         """
         if x not in self.cache.keys():
             self.cache[x] = self.function(x)
@@ -59,7 +55,25 @@ class CachedFunc:
 
 
 def bisect_intervals(interval_endpoints: np.ndarray, linear_bisection_mask: np.ndarray, logstep_towards_inf: float) -> np.ndarray:
+    """Bisect the intervals between elements of `interval_endpoints`
     
+    The bisection is done either using the arithmetic or geometric mean of two neighboring points in `interval_endpoint`. Which type depends on `linear_bisection_mask`.
+    
+    If one of the endpoints of an interval is +-inf, the "midpoint" is generated as `logstep_towards_inf` multiplied with the finite endpoint of the interval.
+    In other words, this is the geometric midpoint between the finite point and a phantom point generated as `logstep_towards_inf`^2 multiplied by the finite point.
+    
+    NOTE: It is assumed that if there are infinities in the array, the neighboring point is a finite number *of the same sign*.
+
+    :param interval_endpoints: A sorted 1D array of floats with length N, denoting the edges of the intervals to be bisected
+    :type interval_endpoints: np.ndarray
+    :param linear_bisection_mask: A 1D array of bools with length N-1, where `True` denotes that the interval of the same index
+    should be bisected linearly,and `False` geometrically
+    :type linear_bisection_mask: np.ndarray
+    :param logstep_towards_inf: For intervals between edges (-inf, a) or (a, inf), where a is some finite number, the "midpoint" will be calculated as a*`logstep_towards_inf`
+    :type logstep_towards_inf: float
+    :return: A 1D array of floats with length N-1 containing the midpoints between the points in `interval_endpoints`
+    :rtype: np.ndarray
+    """
     # NOTE: With normal (static) numpy arrays, testing shows it is faster to recalculate all midpoints
     # than to calculate one midpoint and insert into an array of existing midpoints
     midpoints = np.zeros(len(interval_endpoints)-1)
@@ -86,6 +100,31 @@ def integrate_interpolation_error(
     interpolation_error_at_midpoints: np.ndarray,
     logstep_towards_inf: float,
 ) -> np.ndarray:
+    """Integrate numerically the error in each interval
+    
+    Takes in an array of the interpolation error at the midpoints of each interval and approximates the integral of said error in over the interval using Simpson's rule.
+    
+    The error at the endpoints of the intervals is assumed to be zero, since they are assumed to be the interpolation points.
+    
+    For linearly bisected intervals, Simpson's rule gives the integral as: 2/3 * (b-a) * err((a+b)/2), where a and b are the endpoints and err is the error
+    
+    For geometrically bisected intervals: 2/3 * sqrt(a*b) * log(b/a) * sign(a) * err(sqrt(a*b)*sign(a*b))
+    
+    If the frequency is higher than `MAX_FREQUENCY` or lower than `-MAX_FREQUENY`, the integral is set to 0 to terminate the loop and avoid overflow.
+
+    :param interval_endpoints: A sorted 1D array of floats with length N, denoting the edges of the intervals over which to integrate the error
+    :type interval_endpoints: np.ndarray
+    :param linear_bisection_mask: A 1D array of bools with length N-1, where `True` denotes that the interval of the same index was bisected linearly, and `False` geometrically
+    :type linear_bisection_mask: np.ndarray
+    :param interpolation_error_at_midpoints: A 1D array of floats with length N-1 containing the interpolation error
+    at the midpoints of the corresponding interval (assuming the endpoints were used to make the interpolation)
+    :type interpolation_error_at_midpoints: np.ndarray
+    :param logstep_towards_inf: For intervals between edges (-inf, a) or (a, inf), where a is some finite number, the "midpoint" is calculated as a*`logstep_towards_inf`,
+    and the integration is performed over the interval (a*`logstep_towards_inf`**2, a) or (a, a*`logstep_towards_inf`**2), respectively
+    :type logstep_towards_inf: float
+    :return: A 1D array of floats with length N-1 containing the approximated integrated interpolation error over each interval
+    :rtype: np.ndarray
+    """
 
     left_ends = interval_endpoints[:-1]
     right_ends = interval_endpoints[1:]
@@ -130,11 +169,39 @@ def integrate_interpolation_error(
 def find_interval_errors(
     frequencies: np.ndarray,
     func_values: np.ndarray,
-    func: FuncType,
+    func: Callable[[float], ArrayLike],
     linear_bisection_condition: Callable[[np.ndarray], np.ndarray],
-    interpolation_error_metric: Callable[[FuncOutputType, np.ndarray], float],
+    interpolation_error_metric: Callable[[ArrayLike, np.ndarray], float],
     logstep_towards_inf: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
+    """Finds the integrated interpolation error obtained when interpolating `func` on `frequencies`
+    
+    Constructs a PCHIP interpolation of `func` based on `frequencies` and `func_values`.
+    Then bisects all frequency intervals either linearly or geometrically, depending on `linear_bisection_condition`,
+    and evaluates func and the interpolation on these midpoints.
+    The difference between the two is passed through `interpolation_error_metric`
+    and then integrated over each interval using Simpson's method.
+
+    :param frequencies: A 1D array of floats with length N containing frequencies [Hz]
+    :type frequencies: np.ndarray
+    :param func_values: An array of complex numbers with shape (N, X1, X2, ...) containing the values `func` evaluated at `frequencies`
+    :type func_values: np.ndarray
+    :param func: The function to perform a Fourier integral on
+    :type func: Callable[[float], ArrayLike]
+    :param linear_bisection_condition: A callable that takes in the left ends of the frequency intervals [Hz] (length N-1)
+    and returns an array of bools of length N-1, where `True` denotes that the following interval should be bisected linearly
+    :type linear_bisection_condition: Callable[[np.ndarray], np.ndarray]
+    :param interpolation_error_metric: A callable that takes in the values of `func` at the generated midpoints and the polynomial approximations of those values,
+    both with shape (N-1, X1, X2, ...) and calculates some error metric between them, e.g. the absolute difference.
+    The output must be 1D and with length N-1 (only the frequency dimension)
+    :type interpolation_error_metric: Callable[[ArrayLike, np.ndarray], float]
+    :param logstep_towards_inf: If +-inf is included in the frequency range, the midpoint between it and its (finite) neighbor frequency is computed by multiplying that
+    neighboring frequency with `logstep_towards_inf`
+    :type logstep_towards_inf: float
+    :return: A 1D array of floats with length N-1 containing midpoint frequencies [Hz],
+    as well as an array of the same shape containing the integrated interpolation error in the corresponding interval.
+    :rtype: Tuple[np.ndarray, np.ndarray]
+    """
     
     # Make mask array where True indicates that the bisection of the interval of the same index should be done linearly
     linear_bisection_mask = linear_bisection_condition(frequencies[:-1])
@@ -151,7 +218,7 @@ def find_interval_errors(
 
     # Interpolate func at bisections using pchip
     # TODO: same for linear interp?
-    # Note: From 2nd iteration and onwards, it would be slightly faster to only interpolate around the new point, but not much.
+    # NOTE: From 2nd iteration and onwards, it would be slightly faster to only interpolate around the new point, but not much.
     # This approach then allows for much simpler code (i.e not having to pass arrays of midpoints and interpolations in and out of functions).
     # Benchmarking shows that this approach costs < 1 ms per iteration, which typically adds up to ~ 1 s for the entire algorithm
     # NOTE: In the case of infinities at the end extrapolation is done
@@ -170,14 +237,63 @@ def find_interval_errors(
 
 
 def improve_frequency_range(
-    initial_frequencies: Sequence,
-    func: FuncType, 
+    initial_frequencies: Sequence[float],
+    func: Callable[[float], ArrayLike], 
     interpolation_error_metric: Callable[[np.ndarray, np.ndarray], np.ndarray],
     absolute_integral_tolerance: float,
     logstep_towards_inf: float = 2,
     bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]] = None,
     max_iterations: Optional[int] = None
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Performs an adaptive algorithm to improve a frequency range for calculation of the Fourier integral of `func`
+    
+    The algorithm finds new frequencies by creating a PCHIP interpolaion of `func` on the frequencies, comparing that interpolation
+    with the true function value the midpoints of all frequency subintervals, and using Simpson's method to approximate the total interpolation error
+    in each subinterval. The midpoint of the subinterval with the largest interpolation error is then added to the `frequencies` array.
+    
+    This repeats either until `max_iterations` iterations have been performed, or until the interpolation error integral
+    has a smaller total value than `absolute_integral_tolerance`
+    
+    To avoid many repeated calls to `func`, the outputs are cached, so that reevaluation at the same frequency only amounts to a dictionary lookup.
+    
+    `func` should only give finite outputs for all frequencies between the extremes of the input frequencies.
+    
+    The improved frequency range will never exceed the boundaries of the input.
+    
+    +-inf can be included in the frequency range, but user discretion is advised, as depending on `func` and `logstep_towards_inf`, adding frequencies towards inf
+    can come at the cost of adding frequencies close to the most important features of `func`.
+    
+    It should be noted that while the algorithm will run with as little as 2 initial frequencies, it is for the best results advised to use a frequency range that
+    already captures the most essential features of `func`, and thus use the algorithm to improve this range.
+
+    :param initial_frequencies: A 1D array of floats containing the starting frequencies [Hz]* for the algorithm. Must contain at least 2 frequencies. Can contain +-np.inf.
+    :type initial_frequencies: Sequence[float]
+    :param func: The function to be Fourier integrated, a function of frequency [Hz]* with a complex output. Does not need to be vectorized.
+    Results will be cached to avoid repeat calls with the same input.
+    :type func: Callable[[float], ArrayLike]
+    :param interpolation_error_metric: A callable that takes in an array of func outputs (shape (N, X1, X2, ...)) and interpolated approximations
+    of the same values (also shape (N, X1, X2, ...))
+    The primary axis (of length N) corresponds to the frequency. The callable should return a difference metric between the two inputs,
+    collapsed into a 1D array along the frequency axis,
+    i.e. the output should have the shape (N,)
+    :type interpolation_error_metric: Callable[[np.ndarray, np.ndarray], np.ndarray]
+    :param absolute_integral_tolerance: The tolerance for the (approximate) integrated interpolation error. When the error drops below this value, the algorithm terminates.
+    :type absolute_integral_tolerance: float
+    :param logstep_towards_inf: When one of the ends of the frequency array is +-inf, the bisection of the corresponding interval is calculated by multiplying the (finite)
+    neighboring frequency with this number. Defaults to 2
+    :type logstep_towards_inf: float, optional
+    :param bisection_mode_condition: A function that takes in a frequency array [Hz]* and returns an array of bools of the same size,
+    where `True` denotes that the interval following that frequency should be bisected linearly,
+    and `False` geometrically. Can be set to `None`, in which case only geometric bisection is used. Defaults to `None`
+    :type bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]], optional
+    :param max_iterations: The maximum amount of iterations to perform before the algorithm is terminated. If set to `None`, the algorithm will only terminate
+    after the tolerance has been met. Defaults to `None`
+    :type max_iterations: Optional[int], optional
+    :return: The refined frequency range [Hz]*, and an array containing the corresponding outputs of `func`
+    :rtype: Tuple[np.ndarray, np.ndarray]
+    
+    * Though Hz is used as units here, any frequency unit will work, just be mindful that the unit must be coherent with the time unit if used in a Fourier integral
+    """
     
     # NOTE: Could consider changing all insert and append to work in-place on a larger array. I.e. a dynamic array approach
 
@@ -258,7 +374,7 @@ def improve_frequency_range(
 def fourier_integral_adaptive(
     times: ArrayLike,
     initial_frequencies: Sequence,
-    func: FuncType, 
+    func: Callable[[float], ArrayLike], 
     interpolation_error_metric: Callable[[np.ndarray, np.ndarray], np.ndarray],
     absolute_integral_tolerance: float,
     interpolation: str = "pchip",
@@ -266,6 +382,69 @@ def fourier_integral_adaptive(
     bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]] = None,
     max_iterations: Optional[int] = None,
 ) -> np.ndarray:
+    """Performs an adaptive algorithm to improve a frequency range and uses the improved frequency range to compute the Fourier integral of `func`
+    
+    The algorithm finds new frequencies by creating a PCHIP interpolaion of `func` on the frequencies, comparing that interpolation
+    with the true function value the midpoints of all frequency subintervals, and using Simpson's method to approximate the total interpolation error
+    in each subinterval. The midpoint of the subinterval with the largest interpolation error is then added to the `frequencies` array.
+    
+    This repeats either until `max_iterations` iterations have been performed, or until the interpolation error integral has a
+    smaller total value than `absolute_integral_tolerance`
+    
+    To avoid many repeated calls to `func`, the outputs are cached, so that reevaluation at the same frequency only amounts to a dictionary lookup.
+    
+    `func` should only give finite outputs for all frequencies between the extremes of the input frequencies.
+    
+    The improved frequency range will never exceed the boundaries of the input.
+    
+    +-inf can be included in the frequency range, but user discretion is advised, as depending on `func` and `logstep_towards_inf`, adding frequencies towards inf
+    can come at the cost of adding frequencies close to the most important features of `func`.
+    
+    It should be noted that while the algorithm will run with as little as 2 initial frequencies, it is for the best results advised to use a frequency range that
+    already captures the most essential features of `func`, and thus use the algorithm to improve this range.
+    
+    The Fourier integral itself is the integral from fmin to fmax of : exp(2*pi*j*f*t)*func(f)*df,
+    
+    where t is the time, fmin is the first frequency in the input `frequencies`, fmax is the highest frequency and func(f) is the input function of frequency.
+    
+    It is computed using a Filon type algorithm using a piecewise cubic Hermite interpolating polynomial (pchip). 
+    For details on implementation, see [1].
+    
+    This function combines the functionality of `neffint.improve_frequency_range` and `neffint.fourier_integral_fixed_sampling`, and only for convenience.
+    If the improved frequencies or the corresponding function values are needed, use the two functions separately.
+
+    :param times: Float or 1D array of floats, the time(s) [s]* to compute the fourier integral for
+    :type times: ArrayLike
+    :param initial_frequencies: A 1D array of floats containing the starting frequencies [Hz]* for the algorithm. Must contain at least 2 frequencies. Can contain +-np.inf.
+    :type initial_frequencies: Sequence[float]
+    :param func: The function to be Fourier integrated, a function of frequency [Hz] with a complex output. Does not need to be vectorized.
+    Results will be cached to avoid repeat calls with the same input.
+    :type func: Callable[[float], ArrayLike]
+    :param interpolation_error_metric: A callable that takes in an array of func outputs (shape (N, X1, X2, ...)) and interpolated approximations
+    of the same values (also shape (N, X1, X2, ...))
+    The primary axis (of length N) corresponds to the frequency. The callable should return a difference metric between the two inputs,
+    collapsed into a 1D array along the frequency axis, i.e. the output should have the shape (N,)
+    :type interpolation_error_metric: Callable[[np.ndarray, np.ndarray], np.ndarray]
+    :param absolute_integral_tolerance: The tolerance for the (approximate) integrated interpolation error. When the error drops below this value, the algorithm terminates.
+    :type absolute_integral_tolerance: float
+    :param logstep_towards_inf: When one of the ends of the frequency array is +-inf, the bisection of the corresponding interval is calculated by multiplying the (finite)
+    neighboring frequency with this number. Defaults to 2
+    :type logstep_towards_inf: float, optional
+    :param bisection_mode_condition: A function that takes in a frequency array [Hz]* and returns an array of bools of the same size,
+    where `True` denotes that the interval following that frequency should be bisected linearly, and `False` geometrically.
+    Can be set to `None`, in which case only geometric bisection is used. Defaults to `None`
+    :type bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]], optional
+    :param max_iterations: The maximum amount of iterations to perform before the algorithm is terminated. If set to `None`, the algorithm will only terminate
+    after the tolerance has been met. Defaults to `None`
+    :type max_iterations: Optional[int], optional
+    :return: The fourier integral of `func` for the given input `times`
+    :rtype: np.ndarray
+    
+    * Though the units s and Hz are used here, any coherent set of time and frequency units will work
+    
+    [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
+    """
+    
     
     frequencies, func_values = improve_frequency_range(
         initial_frequencies=initial_frequencies,
@@ -281,7 +460,7 @@ def fourier_integral_adaptive(
         times=times,
         frequencies=frequencies,
         func_values=func_values,
-        pos_inf_correction_term=True,
-        neg_inf_correction_term=False,
+        pos_inf_correction_term=(frequencies[-1] == np.inf),
+        neg_inf_correction_term=(frequencies[0] == -np.inf),
         interpolation=interpolation
     )
