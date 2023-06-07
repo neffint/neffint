@@ -9,7 +9,6 @@ PACKAGES_REQUIRED = {
     "core": [
         "numpy",
         "scipy",
-        "sortednp"
     ],
     "test":[
         "pytest"

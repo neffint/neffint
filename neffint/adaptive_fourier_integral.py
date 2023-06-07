@@ -16,7 +16,6 @@ import logging
 from typing import Callable, Dict, Optional, Sequence, Tuple
 
 import numpy as np
-import sortednp
 from numpy.typing import ArrayLike
 
 from .fixed_grid_fourier_integral import fourier_integral_fixed_sampling
@@ -365,7 +364,7 @@ def improve_frequency_range(
                  f"Adding {len(midpoint_freqs)-1} already evaluated midpoint frequencies to frequency array.")
 
     # After bisection algorithm, return all frequencies with cached func results
-    frequencies = sortednp.merge(frequencies, midpoint_freqs, duplicates=sortednp.DROP)
+    frequencies = np.union1d(frequencies, midpoint_freqs)
     func_values = np.array([func(freq) for freq in frequencies])
 
     return frequencies, func_values
