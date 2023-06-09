@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 from pathlib import Path
 
 # Use semantic versioning
-VERSION = "0.1.0"
+VERSION = "1.0.0"
 
 PY_VERSION_REQUIRED = ">=3.7"
 PACKAGES_REQUIRED = {
