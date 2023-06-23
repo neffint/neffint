@@ -1,8 +1,18 @@
 API Reference
 =============
 
-The functions and classes prefixed by an underscore (``_``) are considered internals of the package and should primarily
-be of interest to those developing or making changes to the package.
+Public Interface
+----------------
+
+.. automodule:: neffint
+   :member-order: bysource
+   :members:
+   :show-inheritance:
+
+Package Internals
+-----------------
+
+The following functions and classes are mainly of interest to developers of Neffint.
 
 .. automodule:: neffint.fixed_grid_fourier_integral
    :member-order: bysource

@@ -14,8 +14,8 @@ Neffint licensed under an Apache-2.0 license. See `HERE <https://www.apache.org/
    :maxdepth: 1
    :caption: Contents:
 
+   theory
    api
-
 
 
 Installation procedure
