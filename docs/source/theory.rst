@@ -138,6 +138,69 @@ Appendix
 Appendix A - Integration of linear and PCHIP interpolants
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+As mentioned in `Integrating the main integration range`_, when performing the Fourier integral using Filon's method, any interpolating polynomial can in principle be used.
+Here, we show the solution for a linear interpolant and a PCHIP interpolant. Derivation of these results are given in [N.Mounet-PhD]_.
+
+In both solutions,
+
+.. math::
+    \Delta_k = \omega_{k+1} - \omega_k
+
+denotes the length of the frequency interval. It is also worth noting that while e.g. :math:`p_k(\omega)` is written in the expressions,
+by construction, this is identical to :math:`\psi(\omega)` as well.
+There is in practice therefore not necessary to compute the interpolant (i.e. slopes and constants on each interval for linear interpolation),
+as knowing the function values is enough.
+
+Linear
+^^^^^^
+When using a linear interpolation, the integral of each subinterval evaluates to
+
+.. math::
+    \begin{align}
+        \int_{\omega_k}^{\omega_{k+1}} p_k(\omega) e^{i \omega t} d\omega
+        = \Delta_k[
+            & p_k(\omega_k) e^{i \omega_{k+1} t} \Lambda(-\Delta_k t) \\
+            + & p_k(\omega_{k+1}) e^{i \omega_k t} \Lambda(-\Delta_k t)
+        ],
+    \end{align}
+
+where :math:`\Lambda(x)` is given by
+
+
+.. math::
+    \Lambda(x) = - \frac{i e^{ix}}{x} + \frac{e^{ix} -1}{x^2}.
+
+PCHIP
+^^^^^
+
+When using PCHIP interpolation, the integral in each subinterval evaluates to
+
+.. math::
+    \begin{align}
+        \int_{\omega_k}^{\omega_{k+1}} p_k(\omega) e^{i \omega t} d\omega
+        = \Delta_k[ 
+            & p_k(\omega_k) e^{i \omega_{k+1} t} \Phi(-\Delta_k t) \\
+            + & p_k(\omega_{k+1}) e^{i \omega_k t} \Phi(\Delta_k t) \\
+            + & \Delta_k p_k'(\omega_k) e^{i \omega_{k+1} t} \Psi(-\Delta_k t) \\
+            + & \Delta_k p_k'(\omega_{k+1}) e^{i \omega_k t} \Psi(\Delta_k t)
+        ],
+    \end{align}
+
+where :math:`\Phi` and :math:`\Psi` are given by
+
+.. math::
+    \begin{align}
+        \Phi(x) & =
+            - \frac{i e^{i x}}{x} 
+            - \frac{6 i (e^{i x} + 1)}{x^3}
+            + \frac{12(e^{i x} - 1)}{x^4}, \\
+        \Psi(x) & = 
+            \frac{e^{i x}}{x^2} 
+            + \frac{2 i (2 e^{i x} + 1)}{x^3}
+            - \frac{6(e^{i x} - 1)}{x^4}.
+    \end{align}
+
+Note that the derivatives of the interpolant enters into the expression. This derivative is determined by the PCHIP algorithm.
 
 .. _appendix-logscale-simpson:
 
