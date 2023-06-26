@@ -78,13 +78,56 @@ With this procedure, one can accurately compute Fourier integrals without the ne
 2. The choice of frequency subintervals :math:`[\omega_k, \omega_{k+1}]`
 3. The choice of interpolating polynomial type
 
-These will all be adressed in the next section.
+The choice of polynomial type is a matter of preference to the user, within the limits of what is supported by Neffint.
+The other two points will be discussed in the next section.
 
 
-Code Implementation
+Frequency Selection
 -------------------
 
-TODO
+To select frequencies, we can make use of the inequality
+
+.. math::
+    | \left( \int_{\omega_{min}}^{\omega_{max}} \psi(\omega) e^{i \omega t} d\omega - \int_{\omega_{min}}^{\omega_{max}} p(\omega) e^{i \omega t} d\omega \right) |
+    \leq
+    \int_{\omega_{min}}^{\omega_{max}} |\psi(\omega) - p(\omega)| d\omega,
+
+where :math:`p(\omega)` is the function equal to :math:`p_k(\omega)` on each subinterval.
+In other words, the integrated interpolation error sets an upper bound on the Fourier integral error,
+and one can therefore find a good set of frequencies to use for the Fourier integration
+by finding one that minimizes the integrated interpolation error. An algorithm for achieving this is outlined as follows:
+
+First, define an initial sequence of frequencies :math:`\{\omega_{min}, \omega_1, \omega_2, \cdots, \omega_{max}\}`.
+This could be anything from a arithmetic or geometric sequence to a more specialized initial guess.
+Compute the value of :math:`\psi(\omega)` at each of these frequencies, and use those values to create an interpolating polynomial :math:`p_k(\omega)` in each subinterval.
+
+Then, compute the midpoint frequency :math:`\omega_{k, k+1} = \frac{\omega_k + \omega_{k+1}}{2}` of each existing frequency subinterval.
+The Simpson's rule approximation of the integrated interpolation error is given then as
+
+.. math::
+    \text{Total error} = \sum_k \frac{2(\omega_{k+1} - \omega_k)}{3} | \psi(\omega_{k, k+1}) - p_k(\omega_{k, k+1}) |,
+
+where the contribution from the interval endpoints has been removed since they by construction of the interpolant are identically zero.
+By iteratively adding the midpoint frequency from the interval with largest error, and recomputing the error with the two new intervals added,
+the error should gradually shrink, and one can terminate the iteration when reaching a desired tolerance.
+
+As an alternative to bisecting the subintervals using the arithmetic mean, as shown above, one could use the geometric mean instead:
+
+.. math::
+    \omega_{k, k+1} = \operatorname{sign}(\omega_k) \sqrt{\omega_k \omega_{k+1}} = e^{\frac{\log(\omega_k) + \log(\omega_{k+1})}{2}}.
+
+This can not be done for intervals containing zero, and requires Simpson's formula to be modified to
+
+.. math::
+    \text{Total error} = \sum_k \frac{2}{3} \log\left({\frac{\omega_{k+1}}{\omega_k}}\right) | \psi(\omega_{k, k+1}) - p_k(\omega_{k, k+1}) |\omega_{k, k+1}.
+
+The calculation steps are shown in :ref:`appendix-logscale-simpson`.
+One can also combine the two approaches, selecting either arithmetic or geometric bisection depending on the frequency.
+
+Regarding the determination of good frequency end points :math:`\omega_{min}, \omega_{max}`, one can incorporate this into the bisection algorithm by also allowing the intervals
+:math:`(-\infty, \omega_{min})` and :math:`(\omega_{max}, \infty)` to be bisected.
+This can be done by creating a phantom frequency by taking the sum or product of :math:`\omega_{min}` or :math:`\omega_{max}` and some constant,
+and using this phantom frequency for the bisection and error integration.
 
 
 Appendix
@@ -96,10 +139,21 @@ Appendix A - Integration of linear and PCHIP interpolants
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
+.. _appendix-logscale-simpson:
 
+Appendix B - Log-scale Simpson's method
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-
+.. math::
+    \begin{align*}
+        \int_a^b f(x) dx &= \int_{u_0}^{u_1} f(e^u) e^u du \quad |\quad u = \log(x), u_0 = \log(x_0) , u_1 = \log(x_1) \\
+        \\
+        &\approx \frac{u_1 - u_0}{6} \left(f(e^{u_0})e^{u_0} + 4 f(e^{\frac{u_0 + u_1}{2}})e^{\frac{u_0 + u_1}{2}} + f(e^{u_1})e^{u_1} \right) \\
+        \\
+        &= \frac{\log(x_1) - \log(x_0)}{6} \Bigl( f(x_0)x_0 + 4 f(e^{\frac{\log(x_0) + \log(x_1)}{2}})e^{\frac{\log(x_0) + \log(x_1)}{2}}+ f(x_1)x_1 \Bigr) \\
+        \\
+        &=\frac{1}{6} \log\left({\frac{x_1}{x_0}}\right) \Bigl( f(x_0)x_0 + 4 f(\sqrt{x_0 x_1})\sqrt{x_0 x_1} + f(x_1)x_1 \Bigr)
+    \end{align*}
 
 
 .. [N.Mounet-PhD] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012), http://infoscience.epfl.ch/record/174672/files/EPFL_TH5305.pdf
