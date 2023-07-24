@@ -24,7 +24,7 @@ def test_bisect_intervals():
     output_midpoints = _bisect_intervals(
         interval_endpoints=input_interval_endpoints,
         linear_bisection_mask=input_linear_bisection_mask,
-        logstep_towards_inf=input_logstep_towards_inf
+        step_towards_inf_factor=input_logstep_towards_inf
     )
 
     assert output_midpoints == pytest.approx(expected_midpoints)
@@ -36,7 +36,7 @@ def test_integrate_interpolation_error_linear():
     input_midpoint_frequencies = _bisect_intervals(
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
-        logstep_towards_inf=2 # Not relevant for this test
+        step_towards_inf_factor=2 # Not relevant for this test
     )
 
     # f(x) = (x-1)(x-5) = x^2 - 6x + 5
@@ -60,7 +60,7 @@ def test_integrate_interpolation_error_linear():
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
         interpolation_error_at_midpoints=input_interpolation_error,
-        logstep_towards_inf=2 # Not relevant for this test
+        step_towards_inf_factor=2 # Not relevant for this test
     )
 
     assert output_interpolation_error_by_interval == pytest.approx(expected_interpolation_error_by_inteval)
@@ -72,7 +72,7 @@ def test_integrate_interpolation_error_logarithmic():
     input_midpoint_frequencies = _bisect_intervals(
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
-        logstep_towards_inf=2 # Not relevant for this test
+        step_towards_inf_factor=2 # Not relevant for this test
     )
 
     # substitute u = log(x)
@@ -103,7 +103,7 @@ def test_integrate_interpolation_error_logarithmic():
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
         interpolation_error_at_midpoints=input_interpolation_error,
-        logstep_towards_inf=2 # Not relevant for this test
+        step_towards_inf_factor=2 # Not relevant for this test
     )
 
     assert output_interpolation_error_by_interval == pytest.approx(expected_interpolation_error_by_interval)
@@ -136,8 +136,8 @@ def test_find_interval_errors():
         func_values=func(input_frequencies),
         func=func,
         linear_bisection_condition=input_bisection_mode_condition,
-        interpolation_error_metric=input_error_metric,
-        logstep_towards_inf=2 # Not relevant for this test
+        interpolation_error_norm=input_error_metric,
+        step_towards_inf_factor=2 # Not relevant for this test
     )
     
     output_max_error_freq = output_midpoint_frequencies[np.argmax(output_interpolation_error_by_interval)]
@@ -168,9 +168,9 @@ def test_improve_frequency_range():
     output_frequencies, output_func_values = improve_frequency_range(
         initial_frequencies=input_frequencies,
         func=func, 
-        interpolation_error_metric=error_metric,
+        interpolation_error_norm=error_metric,
         absolute_integral_tolerance=input_tolerance,
-        logstep_towards_inf=2, # Not relevant for this test
+        step_towards_inf_factor=2, # Not relevant for this test
         bisection_mode_condition=input_bisection_mode_condition
     )
 
@@ -188,24 +188,23 @@ def test_improve_frequency_range():
 def test_fourier_integral_adaptive(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike]):
     input_times = np.logspace(-10, 5, 100)
     input_starting_frequencies = (0, np.inf) # Start with very few frequencies
-    input_interpolation_error_metric = lambda x, y: np.abs(x-y)
     input_absolute_tolerance = 1e-1
 
     output_transform_arr = fourier_integral_adaptive(
         times=input_times,
         initial_frequencies=input_starting_frequencies,
         func=input_func, 
-        interpolation_error_metric=input_interpolation_error_metric,
         absolute_integral_tolerance=input_absolute_tolerance,
         interpolation = "pchip",
-        logstep_towards_inf = 2,
+        step_towards_inf_factor = 2,
         bisection_mode_condition = None,
+        interpolation_error_norm=None,
         max_iterations = 1000
     )
     
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
 
-    # Tolerance is increased by 1e3 compared to what is should be. This partially stems from limiting the number of iterations in the interest of time,
+    # Tolerance is increased by 1e3 compared to what it should be. This partially stems from limiting the number of iterations in the interest of time,
     # and partially because the initial frequency range is poor. One would get better results by giving better initial frequencies, but this approach also allows testing
     # that 
     assert np.real(output_transform_arr) == pytest.approx(expected_transform_arr, abs=input_absolute_tolerance*1e3)
