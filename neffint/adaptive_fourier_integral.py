@@ -24,15 +24,19 @@ from .utils import complex_pchip
 MAX_FREQUENCY = 1e25
 
 def _difference_norm(a: ArrayLike, b: ArrayLike) -> np.ndarray:
-    """Take in two arrays `a` and `b` and return norm of the difference between the two as a 1D array.
+    """Calculate a standard difference norm of `a` and `b`
     
-    `a` and `b` should both have the same length of the 0th axis, and should be broadcastable so that a-b also has the same length 0th axis.
+    If the input is 0- or 1-dimensional, the absolute difference is returned.
+    
+    Any dimensions after the first are collapsed using the 2-norm,
+    so that the output is either 0-dimensional (for a and b 0-dimensional) or
+    1D (for `a` and `b` of 1D or higher).
 
     :param a: Array 
     :type a: ArrayLike
     :param b: The other array to take the difference of
     :type b: ArrayLike
-    :return: A 1D array with the difference norm of a and b
+    :return: A 0D or 1D array with the difference norm of a and b
     :rtype: np.ndarray
     """
 
@@ -41,17 +45,8 @@ def _difference_norm(a: ArrayLike, b: ArrayLike) -> np.ndarray:
     
     difference = a - b
     
-    assert len(difference.shape) != 0, "difference_norm not intended for use on numbers"
-    assert difference.shape[0] == a.shape[0] == b.shape[0], "a and b must be broadcastable so that a-b has the same 0th dimension as a and b"  
-    
-    if len(difference.shape) == 1:
-        # For 1D arrays (which is the case for a Reals->Complex^1 functions evaluated on a frequency range) or numbers
-        # Use the absolute difference
-        return np.abs(difference)
-    else:
-        # For higher dimension arrays, take the norm of all dimensions except the frequency dimension
-        # NOTE: By exchanging np.sum for np.mean here one would get the root mean square error
-        return np.sqrt(np.sum(difference**2, axis=tuple(range(1, len(difference.shape)))))
+    # NOTE: By exchanging np.sum for np.mean here one would get the root mean square error
+    return np.sqrt(np.sum(np.abs(difference)**2, axis=tuple(range(1, len(difference.shape)))))
 
 class CachedFunc:
     """Wrapper class around a function to cache function calls for faster evaluation of the function with the same arguments.
@@ -112,7 +107,7 @@ def _bisect_intervals(interval_endpoints: np.ndarray, linear_bisection_mask: np.
     left_ends = interval_endpoints[:-1]
     right_ends = interval_endpoints[1:]
     
-    assert np.all(np.sign(left_ends[~linear_bisection_mask]) == np.sign(right_ends[~linear_bisection_mask])), "Make sure linear_bisection_masks is True for intervals containing 0"
+    assert np.all(np.sign(left_ends[~linear_bisection_mask]) == np.sign(right_ends[~linear_bisection_mask])), "linear_bisection_mask must be True for intervals containing 0"
     midpoints[~linear_bisection_mask] = np.sqrt(left_ends[~linear_bisection_mask] * right_ends[~linear_bisection_mask]) * np.sign(left_ends[~linear_bisection_mask]) # geometric/logarithmic mean
     midpoints[ linear_bisection_mask] =  1/2 * (left_ends[ linear_bisection_mask] + right_ends[ linear_bisection_mask]) # arithmetic mean
 
@@ -150,7 +145,7 @@ def _simpson_integral(a: ArrayLike, b: ArrayLike, y_mid: ArrayLike, geometric: b
     """
     
     if geometric:
-        assert np.all(np.sign(a) == np.sign(b)), "Make sure geometrically bisected intervals do not contain 0"
+        assert np.all(np.sign(a) == np.sign(b)), "Geometrically bisected intervals can not contain 0"
         return 2/3 * np.sqrt(a * b) * np.sign(a) * np.log(b / a) * y_mid
     else:
         return 2/3 * (b - a) * y_mid
@@ -332,6 +327,8 @@ def improve_frequency_range(
     can come at the cost of not adding frequencies close to the most important features of `func`, since the frequency intervals added towards infinity can get very wide
     (they get gradually bigger), and this can overshadow shorter intervals where the error is larger.
     
+    The starting frequency range must contain at least 2 finite frequencies, and +-infinity requires the adjacent frequency to be finite, non-zero, and of the same sign. 
+    
     It should be noted that while the algorithm will run with as little as 2 initial frequencies, it is for the best results advised to use a frequency range that
     already captures the most essential features of `func`, and thus use the algorithm to improve this range.
 
@@ -361,26 +358,16 @@ def improve_frequency_range(
     :return: The refined frequency range [Hz]*, and an array containing the corresponding outputs of `func`
     :rtype: Tuple[np.ndarray, np.ndarray]
     
-    * Though Hz is used as units here, any frequency unit will work, just be mindful that the unit must be coherent with the time unit if used in a Fourier integral
+    * Though Hz is used as units here, any frequency unit will work, just be mindful that if used in a Fourier integral the result will be in units 1/<frequency unit>
     """
     
     # NOTE: Could consider changing all insert and append to work in-place on a larger array. I.e. a dynamic array approach
 
     # Starting frequencies
     frequencies = np.asarray(initial_frequencies)
-    assert len(frequencies) >= 2, "Need 2 or more frequencies in initial frequency range"
-    
-    # To avoid algorithmic problems, insert `-1` if the first frequency is -inf and the second is non-negative
-    if frequencies[0] == -np.inf and frequencies[1] >= 0:
-        frequencies = np.insert(frequencies, 1, -1)
-    
-    # Similarly, if the last frequency is +inf and the second last is non-positive, insert the frequency `1`
-    if frequencies[-1] == np.inf and frequencies[-2] <= 0:
-        frequencies = np.insert(frequencies, -1, 1)
-
-    # Interpolation requires 2 finite frequencies to run
-    if sum(np.isfinite(frequencies)) < 2:
-        frequencies = np.union1d(frequencies, 2*frequencies)
+    assert sum(np.isfinite(frequencies)) >= 2, "Need 2 or more finite frequencies in initial frequency range"
+    assert frequencies[0] != -np.inf or frequencies[1] < 0,  "-inf needs a finite, negative, non-zero adjacent frequency in the initial frequency range"
+    assert frequencies[-1] != np.inf or frequencies[-2] > 0, "+inf needs a finite, positive, non-zero adjacent frequency in the initial frequency range"
 
     func = CachedFunc(func)
 
