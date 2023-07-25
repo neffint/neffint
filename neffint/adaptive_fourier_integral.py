@@ -284,7 +284,7 @@ def _find_interval_errors(
     # The approach implemented below then allows for much simpler code (i.e not having to pass arrays of midpoints and interpolations in and out of functions).
     # Benchmarking shows that this approach costs < 1 ms per iteration, which typically adds up to ~ 1 s for the entire algorithm
     # NOTE: In the case of infinities at the end extrapolation is done
-    finite_mask = np.isfinite(frequencies) & np.isfinite(func_values)
+    finite_mask = np.isfinite(frequencies) & np.all(np.isfinite(func_values), axis=tuple(range(1, len(func_values.shape))))
     interpolated_values_at_midpoints = complex_pchip(xi=frequencies[finite_mask], zi=func_values[finite_mask], x=freq_midpoints, axis=0)
 
     # Find interpolation error at midpoints using a user defined function
@@ -368,6 +368,8 @@ def improve_frequency_range(
     assert sum(np.isfinite(frequencies)) >= 2, "Need 2 or more finite frequencies in initial frequency range"
     assert frequencies[0] != -np.inf or frequencies[1] < 0,  "-inf needs a finite, negative, non-zero adjacent frequency in the initial frequency range"
     assert frequencies[-1] != np.inf or frequencies[-2] > 0, "+inf needs a finite, positive, non-zero adjacent frequency in the initial frequency range"
+
+    assert step_towards_inf_factor > 1 or sum(np.isinf(frequencies)) == 0, "step_towards_inf_factor must be greater than 1"
 
     func = CachedFunc(func)
 
