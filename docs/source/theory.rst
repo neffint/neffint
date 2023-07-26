@@ -9,19 +9,22 @@ The Neffint package is mainly designed for with computing Fourier integrals, i.e
 .. math::
     \int_{-\infty}^{\infty} \psi(\omega) e^{i \omega t} d\omega,
 
-using a quadrature method largely based on section 1.6.3 in [N.Mounet-PhD]_, which builds on the work of Filon_.
-The need for a specialized method arises from the fact that for large values of `t`, the integrand :math:`\psi(\omega) e^{i \omega t}` oscillates with a very short period.
+using a quadrature method largely based on section 1.6.3 in [N.Mounet-PhD]_, which builds on the work of [Filon]_.
+The need for a specialized method arises from the fact that for large values of `t`,
+the integrand :math:`\psi(\omega) e^{i \omega t}` oscillates with a very short period.
 This can cause problems when using a standard Fast Fourier Transform (FFT) technique,
-since it relies on the assumption that on each frequency subinterval :math:`[\omega_k, \omega_{k+1}]`
+since it relies on the assumption that on, each frequency subinterval :math:`[\omega_k, \omega_{k+1}]` used in the computation,
 
 .. math::
     \int_{\omega_k}^{\omega_{k+1}} \psi(\omega) e^{i \omega t} d\omega
     \approx
     (\omega_{k+1} - \omega_k) \psi(\omega_k) e^{i \omega t},
 
-which for high `t` require a very fine frequency spacing to be correct. In many cases this is unfeasable in terms of computing time and/or memory use.
+which for high `t` require a very fine frequency spacing to be correct.
+In many cases this is unfeasable in terms of computing time and/or memory usage.
 The same requirements for fine frequency grids also apply to other standard integration schemes, such as Simpson's method.
-It is therefore clear that another approach for computing Fourier integrals is needed.
+
+It is therefore clear that an alternative approach for computing Fourier integrals is needed.
 
 
 The Neffint Method
@@ -42,25 +45,30 @@ and compute each of the regions separately.
 Integrating the asymptotic regions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The asymptotic regions can be computed using a Taylor series of :math:`\psi(\omega)` around :math:`\omega_{min}` or :math:`\omega_{min}`, which evaluates to
+The asymptotic regions can be computed using a Taylor series of :math:`\psi(\omega)`
+around :math:`\omega_{min}` or :math:`\omega_{min}`, which evaluates to
 
 .. math::
     \int_{\omega_{max}}^{\infty} \psi(\omega) e^{i \omega t} d\omega
     =
     e^{i \omega_{max} t} \sum_{n=0}^\infty \frac{ i^{n+1} \psi^{(n)}(\omega_{max})}{t^{n+1}},
 
-which can be truncated to desired precision and computed. For the region going to :math:`-\infty`, one gets the same result only with oposite sign.
+which can be truncated to desired precision and computed. For the region going to :math:`-\infty`,
+one gets the same result only with oposite sign.
 
-Often, one deals with functions that are known to be real in time domain, in which case one only needs to integrate over half the frequency domain.
-One can in that case neglect the negative asymptotic term and set :math:`\omega_{min} = 0` (or arbitrarily close in the case of a singularity at `0`).
+Often, one deals with functions that are known to be real in time domain,
+in which case one only needs to integrate over half the frequency domain.
+One can in that case neglect the negative asymptotic term and set :math:`\omega_{min} = 0`
+(or arbitrarily close in the case of a singularity at `0`).
 
 
 Integrating the main integration range
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The main integration range we will split into subintervals :math:`[\omega_k, \omega_{k+1}]`, not necessarily equidistant (!).
-On each of these subintervals, we replace :math:`\psi` with an polynomial :math:`p_k(\omega)` that interpolates :math:`\psi` on that subinterval.
-This yields a new integral,
+The main integration range we will split into subintervals :math:`[\omega_k, \omega_{k+1}]`,
+`not necessarily with equal spacing`.
+On each of these subintervals, we replace :math:`\psi` with a polynomial :math:`p_k(\omega)`
+that interpolates :math:`\psi` on that subinterval. This yields a new integral,
 
 .. math::
     \int_{\omega_k}^{\omega_{k+1}} \psi(\omega) e^{i \omega t} d\omega
@@ -70,9 +78,11 @@ This yields a new integral,
 that can be computed analytically.
 
 The form of this analytic expression depends on the choice of interpolating polynomial.
-The special cases of linear interpolation and PCHIP_ interpolation is detailed in :ref:`appendix-polynomial-examples`.
+The special cases of linear interpolation and [PCHIP]_ interpolation is detailed in :ref:`appendix-polynomial-examples`.
 
-With this procedure, one can accurately compute Fourier integrals without the need for equidistant frequencies. There are only three remaining arbitrary choices:
+With this procedure, one can accurately compute Fourier integrals
+without the need for equidistant or densely spaced frequencies.
+There are only three remaining arbitrary choices:
 
 1. The choice of frequency endpoints :math:`\omega_{min}, \omega_{max}`
 2. The choice of frequency subintervals :math:`[\omega_k, \omega_{k+1}]`
@@ -87,6 +97,7 @@ Frequency Selection
 
 To select frequencies, we can make use of the inequality
 
+.. Using \left and \right (og \big or similar) on the absolute value signs change the colour to make them almost invisible, for some reason
 .. math::
     | \left( \int_{\omega_{min}}^{\omega_{max}} \psi(\omega) e^{i \omega t} d\omega - \int_{\omega_{min}}^{\omega_{max}} p(\omega) e^{i \omega t} d\omega \right) |
     \leq
