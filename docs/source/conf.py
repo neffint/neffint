@@ -6,15 +6,20 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+import neffint
+
 project = 'Neffint'
-copyright = '2023, The Neffint Creators, CERN, BE-ABP-CEI'
-author = 'The Neffint Creators, CERN, BE-ABP-CEI'
+copyright = '2023, The Neffint Authors, CERN, BE-ABP-CEI'
+author = 'The Neffint Authors, CERN, BE-ABP-CEI'
 release = '2023'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = []
+extensions = [
+    "sphinx.ext.duration",
+    "sphinx.ext.autodoc",
+]
 
 templates_path = ['_templates']
 exclude_patterns = []
