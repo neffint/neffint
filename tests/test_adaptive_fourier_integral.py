@@ -123,9 +123,6 @@ def test_geometric_on_zero_raises_error(interval_containing_zero: Sequence[float
             linear_bisection_mask=bisection_mode,
             interpolation_error_at_midpoints=np.asarray([1]),
             step_towards_inf_factor=2)
-    
-    
-    
 
 
 def test_find_interval_errors():
