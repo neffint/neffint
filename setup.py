@@ -25,6 +25,7 @@ setup(
     version=VERSION,
     description="A python package for computing Fourier integrals using a Filon type method with non-equidistant grid spacing.",
     long_description=long_description,
+    long_description_content_type="text/markdown",
     url="https://github.com/neffint/neffint/",
     author="Eskil Vik, Nicolas Mounet",
     packages=find_packages(), # finds all the packages in the repository
