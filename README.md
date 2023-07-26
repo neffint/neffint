@@ -79,4 +79,8 @@ For publishing a release and uploading the release to PyPI, use the following pr
 - Press `"Generate release notes"` to generate release notes. No additional notes are needed.
 - Press publish release. This will push a git tag to the latest commit to main, and run a CI job to build and publish the package to PyPI.
 
-*Alternatively*, one can checkout to `main` and run `release.sh`, which will  also push a git tag and build and publish the release. This method is considered a fallback if for whatever reason it is not desirable or possible to use the Github interface. Using this alternative procedure, one should still still preferably make a Github release from the pushed tag as well.
+Alternatively, one can checkout to `main` and run `release.sh`, which will  also push a git tag and build and publish the release. Using this alternative procedure, one should still still preferably make a Github release from the pushed tag as well. The main differences are:
+
+- When creating a Github release, the Github release and the git tag will automatically be the same, while one must manually verify that the version number in `neffint/_version.py` matches. When using the shell script, `neffint/_version.py` and the git tag are automatically the same, but one must manually check that the Github release matches.
+- `release.sh` relies on using `setup.py`, a format setuptools is moving away from. The Github release workflow does not rely on the `setup.py` format.
+- When using `release.sh`, one must have an authentication token locally on one's machine to upload to PyPI. The Github action uses a repository secret to authenticate with PyPI, so one only needs write access to the Github repository (for creating the release).
