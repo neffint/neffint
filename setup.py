@@ -1,14 +1,16 @@
 from setuptools import setup, find_packages
 from pathlib import Path
 
+# Minimum python version. Remember to also change in github workflows if increased
 PY_VERSION_REQUIRED = ">=3.7"
+
 PACKAGES_REQUIRED = {
     "core": [
         "numpy",
         "scipy",
     ],
     "test":[
-        "pytest"
+        "pytest",
     ]
 }
 
@@ -27,7 +29,7 @@ version = version_file_namespace["__version__"]
 setup(
     name="neffint",
     version=version,
-    description="A python package for computing Fourier integrals using a Filon type method with non-equidistant grid spacing.",
+    description="Computing Fourier integrals using a Filon type method with non-equidistant grid spacing.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/neffint/neffint/",
