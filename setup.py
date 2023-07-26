@@ -1,9 +1,6 @@
 from setuptools import setup, find_packages
 from pathlib import Path
 
-# Use semantic versioning
-VERSION = "1.0.0"
-
 PY_VERSION_REQUIRED = ">=3.7"
 PACKAGES_REQUIRED = {
     "core": [
@@ -15,14 +12,21 @@ PACKAGES_REQUIRED = {
     ]
 }
 
-# Read README.md to use as long description in package metadata
 root_dir = Path(__file__).parent.absolute()
+
+# Read README.md to use as long description in package metadata
 with (root_dir / "README.md").open("rt") as readme_file:
     long_description = readme_file.read().strip()
 
+# Read semantic version number from _version.py
+version_file_namespace = {} # type:ignore
+with (root_dir / "neffint" / "_version.py").open("r") as version_file:
+    exec(version_file.read(), version_file_namespace)
+version = version_file_namespace["__version__"]
+
 setup(
     name="neffint",
-    version=VERSION,
+    version=version,
     description="A python package for computing Fourier integrals using a Filon type method with non-equidistant grid spacing.",
     long_description=long_description,
     long_description_content_type="text/markdown",
