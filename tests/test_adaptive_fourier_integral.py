@@ -1,12 +1,12 @@
 import time
-from typing import Callable
+from typing import Callable, Sequence
 
 import numpy as np
 import pytest
 from numpy.typing import ArrayLike
 from scipy.integrate import simpson
 
-from neffint.adaptive_fourier_integral import (CachedFunc, _bisect_intervals,
+from neffint.adaptive_fourier_integral import (CachedFunc, _bisect_intervals, _difference_norm,
                                                _find_interval_errors,
                                                fourier_integral_adaptive,
                                                improve_frequency_range,
@@ -17,14 +17,14 @@ from neffint.utils import complex_pchip
 def test_bisect_intervals():
     input_interval_endpoints = np.array([-np.inf,      -5,     -2,      -1,     0,     1,      4,    np.inf])
     input_linear_bisection_mask = np.array([     False,   True,   False,   True,  True,  False,  True])
-    input_logstep_towards_inf = 2
+    input_step_towards_inf_factor = 2
 
     expected_midpoints = np.array([-10, -3.5, -np.sqrt(2), -0.5, 0.5, np.sqrt(4), 8])
     
     output_midpoints = _bisect_intervals(
         interval_endpoints=input_interval_endpoints,
         linear_bisection_mask=input_linear_bisection_mask,
-        logstep_towards_inf=input_logstep_towards_inf
+        step_towards_inf_factor=input_step_towards_inf_factor
     )
 
     assert output_midpoints == pytest.approx(expected_midpoints)
@@ -36,7 +36,7 @@ def test_integrate_interpolation_error_linear():
     input_midpoint_frequencies = _bisect_intervals(
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
-        logstep_towards_inf=2 # Not relevant for this test
+        step_towards_inf_factor=2 # Not relevant for this test
     )
 
     # f(x) = (x-1)(x-5) = x^2 - 6x + 5
@@ -60,7 +60,7 @@ def test_integrate_interpolation_error_linear():
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
         interpolation_error_at_midpoints=input_interpolation_error,
-        logstep_towards_inf=2 # Not relevant for this test
+        step_towards_inf_factor=2 # Not relevant for this test
     )
 
     assert output_interpolation_error_by_interval == pytest.approx(expected_interpolation_error_by_inteval)
@@ -72,7 +72,7 @@ def test_integrate_interpolation_error_logarithmic():
     input_midpoint_frequencies = _bisect_intervals(
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
-        logstep_towards_inf=2 # Not relevant for this test
+        step_towards_inf_factor=2 # Not relevant for this test
     )
 
     # substitute u = log(x)
@@ -103,10 +103,29 @@ def test_integrate_interpolation_error_logarithmic():
         interval_endpoints=input_x,
         linear_bisection_mask=input_linear_bisection_mask,
         interpolation_error_at_midpoints=input_interpolation_error,
-        logstep_towards_inf=2 # Not relevant for this test
+        step_towards_inf_factor=2 # Not relevant for this test
     )
 
     assert output_interpolation_error_by_interval == pytest.approx(expected_interpolation_error_by_interval)
+
+
+@pytest.mark.parametrize("interval_containing_zero", ([0,1], [-1,0], [-1,1]))
+def test_geometric_on_zero_raises_error(interval_containing_zero: Sequence[float]):
+    interval_containing_zero = np.asarray(interval_containing_zero)
+    bisection_mode = np.asarray([False]) # Use geometric
+    
+    with pytest.raises(AssertionError):
+        _bisect_intervals(interval_endpoints=interval_containing_zero, linear_bisection_mask=bisection_mode, step_towards_inf_factor=2)
+        
+    with pytest.raises(AssertionError):
+        _integrate_interpolation_error(
+            interval_endpoints=interval_containing_zero,
+            linear_bisection_mask=bisection_mode,
+            interpolation_error_at_midpoints=np.asarray([1]),
+            step_towards_inf_factor=2)
+    
+    
+    
 
 
 def test_find_interval_errors():
@@ -130,14 +149,13 @@ def test_find_interval_errors():
     # Absolute error
     input_error_metric = lambda func_vals, interp_vals: np.abs(func_vals - interp_vals)
 
-
     output_midpoint_frequencies, output_interpolation_error_by_interval = _find_interval_errors(
         frequencies=input_frequencies,
         func_values=func(input_frequencies),
         func=func,
         linear_bisection_condition=input_bisection_mode_condition,
-        interpolation_error_metric=input_error_metric,
-        logstep_towards_inf=2 # Not relevant for this test
+        interpolation_error_norm=input_error_metric,
+        step_towards_inf_factor=2 # Not relevant for this test
     )
     
     output_max_error_freq = output_midpoint_frequencies[np.argmax(output_interpolation_error_by_interval)]
@@ -168,9 +186,9 @@ def test_improve_frequency_range():
     output_frequencies, output_func_values = improve_frequency_range(
         initial_frequencies=input_frequencies,
         func=func, 
-        interpolation_error_metric=error_metric,
+        interpolation_error_norm=error_metric,
         absolute_integral_tolerance=input_tolerance,
-        logstep_towards_inf=2, # Not relevant for this test
+        step_towards_inf_factor=2, # Not relevant for this test
         bisection_mode_condition=input_bisection_mode_condition
     )
 
@@ -181,31 +199,32 @@ def test_improve_frequency_range():
     assert simpson(error_metric(output_interpolation_on_fine_grid, expected_interpolation_on_fine_grid), input_finer_frequencies) < input_tolerance
 
 
+@pytest.mark.parametrize("bisection_mode_condition", (None, lambda freqs: np.ones_like(freqs, dtype=bool)))
 @pytest.mark.parametrize(("input_func", "expected_transform"), [
     ( lambda f: 1 / np.sqrt( 2 * np.pi * f + 1e-50), lambda t: np.sqrt(np.pi / (2 * t)) ),
+    ( lambda f: np.array([[1,2],[3,4]]) / np.sqrt( 2 * np.pi * f + 1e-50),  lambda t: np.array([[1,2],[3,4]]) * np.sqrt(np.pi / (2 * t)) ), # Test dimension handling
     ( lambda f: 1 / (1 + (2 * np.pi * f)**2),        lambda t: np.pi / 2 * np.exp(-t) ),
 ])
-def test_fourier_integral_adaptive(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike]):
+def test_fourier_integral_adaptive(input_func: Callable[[ArrayLike], ArrayLike], expected_transform: Callable[[ArrayLike], ArrayLike], bisection_mode_condition):
     input_times = np.logspace(-10, 5, 100)
-    input_starting_frequencies = (0, np.inf) # Start with very few frequencies
-    input_interpolation_error_metric = lambda x, y: np.abs(x-y)
-    input_absolute_tolerance = 1e-1
+    input_starting_frequencies = (0, 1, np.inf) # Start with very few frequencies
+    input_absolute_tolerance = 1e0
 
     output_transform_arr = fourier_integral_adaptive(
         times=input_times,
         initial_frequencies=input_starting_frequencies,
         func=input_func, 
-        interpolation_error_metric=input_interpolation_error_metric,
         absolute_integral_tolerance=input_absolute_tolerance,
         interpolation = "pchip",
-        logstep_towards_inf = 2,
-        bisection_mode_condition = None,
+        step_towards_inf_factor = 2,
+        bisection_mode_condition = bisection_mode_condition,
+        interpolation_error_norm=None,
         max_iterations = 1000
     )
     
     expected_transform_arr = np.array([expected_transform(time) for time in input_times])
 
-    # Tolerance is increased by 1e3 compared to what is should be. This partially stems from limiting the number of iterations in the interest of time,
+    # Tolerance is increased by 1e3 compared to what it should be. This partially stems from limiting the number of iterations in the interest of time,
     # and partially because the initial frequency range is poor. One would get better results by giving better initial frequencies, but this approach also allows testing
     # that 
     assert np.real(output_transform_arr) == pytest.approx(expected_transform_arr, abs=input_absolute_tolerance*1e3)
@@ -234,3 +253,20 @@ def test_cached_func():
     assert output_result_first == output_result_second
     assert duration_first >= input_call_delay
     assert duration_second < input_call_delay
+
+@pytest.mark.parametrize(["input_a", "input_b", "expected_difference"], [
+    (-1, 2, 3),
+    ([1,-2,-3], [-3,-2,1], [4,0,4]),
+    (
+        [[1,0,0,0],  [2,0,0,0], [0,0,3,0]],
+        [[0,-1,0,0], [-2,1,0,0], [0,1,3,0]],
+        [np.sqrt(2), np.sqrt(17), 1]
+    )
+])
+def test_standard_difference_norm(input_a: ArrayLike, input_b: ArrayLike, expected_difference: ArrayLike):
+    output_difference = _difference_norm(input_a, input_b)
+    
+    expected_difference = np.asarray(expected_difference)
+    
+    assert len(output_difference.shape) <= 1
+    assert output_difference == pytest.approx(expected_difference)
