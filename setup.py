@@ -12,7 +12,13 @@ PACKAGES_REQUIRED = {
     ],
     "test":[
         "pytest"
-    ]
+    ],
+    "docs" : [
+        "sphinx",
+        "sphinx-rtd-theme",
+        "nbsphinx",
+        "nbsphinx-link",
+    ],
 }
 
 # Read README.md to use as long description in package metadata
