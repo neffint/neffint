@@ -1,6 +1,15 @@
 from setuptools import setup, find_packages
 from pathlib import Path
 
+def get_version(path):
+    with path.open("rt") as f:
+        for line in f.readlines():
+            if line.startswith('__version__'):
+                delim = '"' if '"' in line else "'"
+                return line.split(delim)[1]
+        else:
+            raise RuntimeError("Unable to find version string.")
+
 # Minimum python version. Remember to also change in github workflows if increased
 PY_VERSION_REQUIRED = ">=3.7"
 
@@ -28,8 +37,8 @@ version = version_file_namespace["__version__"]
 
 setup(
     name="neffint",
-    version=version,
-    description="Computing Fourier integrals using a Filon type method with non-equidistant grid spacing.",
+    version=get_version(root_dir / "neffint" / "_version.py"),
+    description="Python package for computing Fourier integrals using a Filon type method with non-equidistant grid spacing.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/neffint/neffint/",
