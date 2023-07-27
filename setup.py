@@ -29,12 +29,6 @@ root_dir = Path(__file__).parent.absolute()
 with (root_dir / "README.md").open("rt") as readme_file:
     long_description = readme_file.read().strip()
 
-# Read semantic version number from _version.py
-version_file_namespace = {} # type:ignore
-with (root_dir / "neffint" / "_version.py").open("r") as version_file:
-    exec(version_file.read(), version_file_namespace)
-version = version_file_namespace["__version__"]
-
 setup(
     name="neffint",
     version=get_version(root_dir / "neffint" / "_version.py"),
