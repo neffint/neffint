@@ -18,6 +18,7 @@ PACKAGES_REQUIRED = {
         "sphinx-rtd-theme",
         "nbsphinx",
         "nbsphinx-link",
+        "ipykernel",
     ],
 }
 
