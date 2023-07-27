@@ -22,7 +22,7 @@ extensions = [
 ]
 
 templates_path = ['_templates']
-exclude_patterns = ["notebooks.nblink"]
+exclude_patterns = []
 
 
 

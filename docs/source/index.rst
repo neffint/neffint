@@ -16,6 +16,7 @@ Neffint licensed under an Apache-2.0 license. See `HERE <https://www.apache.org/
 
    theory
    ex_fixed_grid_FI.ipynb
+   ex_adaptive.ipynb
    api
 
 
