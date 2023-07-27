@@ -6,6 +6,11 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath('../..'))
+
 project = 'Neffint'
 copyright = '2023, The Neffint Authors, CERN, BE-ABP-CEI'
 author = 'The Neffint Authors, CERN, BE-ABP-CEI'
