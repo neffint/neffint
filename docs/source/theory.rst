@@ -232,4 +232,4 @@ Appendix B - Log-scale Simpson's method
 
 .. [N.Mounet-PhD] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012), http://infoscience.epfl.ch/record/174672/files/EPFL_TH5305.pdf
 .. [Filon] L. N. G. Filon. On a quadrature formula for trigonometric integrals. Proc. Roy. Soc. Edinburgh, 49:38-47, 1928.
-.. [PCHIP] TODO
+.. [PCHIP] F. N. Fritsch and J. Butland, A method for constructing local monotone piecewise cubic interpolants, SIAM J. Sci. Comput., 5(2), 300-304 (1984). DOI:10.1137/0905021.
