@@ -13,9 +13,7 @@ def complex_pchip(xi: ArrayLike, zi: ArrayLike, x: ArrayLike, derivative_order: 
     The PCHIP interpolation is a cubic interpolation that guarantees to preserve monotonicity on each subinterval of the input data. In this case,
     monotonicity is therefore preserved for both real and imaginary components.
     
-    For more information about the PCHIP algorithm, see [1].
-    
-    [1] F. N. Fritsch and J. Butland, A method for constructing local monotone piecewise cubic interpolants, SIAM J. Sci. Comput., 5(2), 300-304 (1984). DOI:10.1137/0905021.
+    For more information about the PCHIP algorithm, see [PCHIP]_.
 
     :param xi: A 1D array of N real input points
     :type xi: ArrayLike

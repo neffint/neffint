@@ -28,21 +28,19 @@ class InterpolationMode(Enum):
     LINEAR = "linear"
 
 def _lambda(x: ArrayLike) -> np.ndarray:
-    """Calculates the Lambda function defined in equations E.136 in [1], which is given by:
+    """Calculates the Lambda function defined in equations E.136 in [N.Mounet-PhD]_, which is given by:
 
     Lambda(x) = -j*exp(j*x)/x + (exp(j*x)-1)/x^2,
 
     where j = sqrt(-1) is the imaginary unit.
 
-    For |x| < 1, a Taylor series approximation is summed until convergence is reached.
+    For \|x\| < 1, a Taylor series approximation is summed until convergence is reached.
 
     :param x: The input variable x, given as a single float or an array of floats.
     :type x: ArrayLike
     :raises RuntimeError: If the Taylor series summation did not converge after 1000 iterations.
     :return: Lambda, an array with the same shape as x
     :rtype: np.ndarray
-
-    [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
     """
     # Make input into array if it is not already, and prepare output arrays
     x = np.asarray(x)
@@ -90,7 +88,7 @@ def _lambda(x: ArrayLike) -> np.ndarray:
     return result
 
 def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
-    """Calculates the Phi and Psi functions defined in equations E.142 and E.143 in [1], which are given by:
+    """Calculates the Phi and Psi functions defined in equations E.142 and E.143 in [N.Mounet-PhD]_, which are given by:
 
     Phi(x) = -j*exp(j*x)/x - 6j*(exp(j*x)+1)/x^3 + 12(exp(j*x)-1)/x^4,
 
@@ -98,15 +96,13 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
 
     Where j = sqrt(-1) is the imaginary unit.
 
-    For |x| < 1, a Taylor series approximation is summed until convergence is reached.
+    For \|x\| < 1, a Taylor series approximation is summed until convergence is reached.
 
     :param x: The input variable x, given as a single float or an array of floats.
     :type x: ArrayLike
     :raises RuntimeError: If the Taylor series summation did not converge after 1000 iterations.
     :return: Tuple of two arrays: Phi and Psi, with the same shape as x
     :rtype: Tuple[np.ndarray, np.ndarray]
-
-    [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
     """
 
     # Make input into array if it is not already, and prepare output arrays
@@ -183,8 +179,7 @@ def _fourier_integral_inf_correction(
 
     :param times: Float or 1D array of floats of length M, the time(s) [s]* to compute the fourier integral for
     :type times: ArrayLike
-    :param omega_end: An angular frequency [rad/s]* to expand the Taylor series from. If `positive_inf == True`, this should be the highest angular frequency used.
-    Otherwise, it should be the lowest (closest to -inf).
+    :param omega_end: An angular frequency [rad/s]* to expand the Taylor series from. If ``positive_inf == True``, this should be the highest angular frequency used. Otherwise, it should be the lowest (closest to -inf).
     :type omega_end: float
     :param func_value_end: An array of shape (X1, X2, ...) containing the values of the function to be transformed evaluated at omega_end
     :type func_value_end: ArrayLike
@@ -195,7 +190,7 @@ def _fourier_integral_inf_correction(
     :return: The asymptotic terms of the Fourier Integral for all times, given as an array of shape (M, X1, X2, ...)
     :rtype: np.ndarray
     
-    * Though the units s and rad/s are used here, any coherent set of time and angular frequency units will work
+    \*Though the units s and rad/s are used here, any coherent set of time and angular frequency units will work
     """
     
     sign = (1 if positive_inf else -1)
@@ -226,12 +221,12 @@ def fourier_integral_fixed_sampling(
     
     integral from fmin to fmax of : exp(2*pi*j*f*t)*func(f)*df,
     
-    where t is the time, fmin is the first frequency in the input `frequencies`, fmax is either the highest frequency or (positive) infinity, depending on `inf_correction_term`,
+    where t is the time, fmin is the first frequency in the input ``frequencies``, fmax is either the highest frequency or (positive) infinity, depending on ``inf_correction_term``,
     and func(f) is the input function of frequency. The function is given as an array of outputs corresponding to the array of frequencies given. 
     
-    A Filon type algorithm using a either a piecewise cubic Hermite interpolating polynomial (pchip) or a piecewise linear polynomial, depending on the interpolation argument.
+    A Filon type algorithm using a either a piecewise cubic Hermite interpolating polynomial ([PCHIP]_) or a piecewise linear polynomial, depending on the interpolation argument.
     Optionally, an asymptotic correction term can also be computed at each end.
-    For details on implementation, see [1].
+    For details on implementation, see [N.Mounet-PhD]_.
 
     :param times: Float or 1D array of floats of length M, the time(s) [s]* to compute the fourier integral for
     :type times: ArrayLike
@@ -248,9 +243,7 @@ def fourier_integral_fixed_sampling(
     :return: The fourier integral of the input function at the input times, given as an array of shape (M, X1, X2, ...)
     :rtype: np.ndarray
     
-    * Though the units s and Hz are used here, any coherent set of time and frequency units will work
-    
-    [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
+    \*Though the units s and Hz are used here, any coherent set of time and frequency units will work
     """
     
     assert interpolation in [mode.value for mode in InterpolationMode]
