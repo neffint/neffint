@@ -7,4 +7,6 @@ __all__= [
     "fourier_integral_fixed_sampling",
     "fourier_integral_adaptive",
     "improve_frequency_range"
-]
+
+from ._version import __version__
+
