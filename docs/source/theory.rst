@@ -240,5 +240,5 @@ Bibliography
 .. [N.Mounet-PhD] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012), http://infoscience.epfl.ch/record/174672/files/EPFL_TH5305.pdf
 .. [N.Mounet-Wake-function-calculation]  N. Mounet, E. Dadiani, E. Métral, A. Rahemtulla, and C. Zannini, “Closed Form Formulas of the Indirect Space Charge Wake Function for Axisymmetric Structures”, in Proc. HB'21, Batavia, IL, USA, Oct. 2021, pp. 65-70. doi:10.18429/JACoW-HB2021-MOP10
 .. [Filon] L. N. G. Filon. On a quadrature formula for trigonometric integrals. Proc. Roy. Soc. Edinburgh, 49:38-47, 1928.
-.. [Numerical-Recipes] W. H. Press, S. A. Teukolsky, W. T. Vetterling, and B. P. Flannery. Numerical recipes in C. Cambridge University Press, 2nd edition, 1999. http://apps.nrbook.com/c/index.html.
+.. [Numerical-Recipes] W. H. Press, S. A. Teukolsky, W. T. Vetterling, and B. P. Flannery. Numerical recipes in C. Cambridge University Press, 2nd edition, 1992. ISBN:978-0-521-43108-8.
 .. [PCHIP] F. N. Fritsch and J. Butland, A method for constructing local monotone piecewise cubic interpolants, SIAM J. Sci. Comput., 5(2), 300-304 (1984). DOI:10.1137/0905021.
