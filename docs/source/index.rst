@@ -10,6 +10,8 @@ Neffint is an acronym for **N**\ on-\ **e**\ quidistant **F**\ ilon **F**\ ourie
 
 Neffint licensed under an Apache-2.0 license. See `HERE <https://www.apache.org/licenses/LICENSE-2.0>`_ for details.
 
+The source code is available here: https://github.com/neffint/neffint/
+
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
