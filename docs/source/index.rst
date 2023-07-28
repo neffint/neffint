@@ -55,6 +55,12 @@ To compile the documentation locally, run
    pip install .[docs]
    sphinx-build -b html docs/source docs/build/html
 
+.. note:: In case the sphinx build command fails because of an issue related to ``Pandoc``, you can try to install Pandoc manually
+ (but not from PyPI as the package is outdated there). If using ``conda``, try the following command
+  .. code-block:: console
+
+    conda install pandoc
+
 The documentation at https://neffint.readthedocs.io/ is built automatically by ReadTheDocs at every commit to the `main` branch.
 
 

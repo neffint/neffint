@@ -180,10 +180,10 @@ where :math:`\Lambda(x)` is given by
 .. math::
     \Lambda(x) = - \frac{i e^{ix}}{x} + \frac{e^{ix} -1}{x^2}.
 
-It is worth noting that since we in the linear case only to know the interpolant values at the interpolation points :math:`\omega_k`,
+It is worth noting that in the linear case we only need to know the interpolant values at the interpolation points :math:`\omega_k`,
 where by construction of the interpolant :math:`p_k(\omega_k) = \psi(\omega_k)`.
 We therefore do not need to actually construct the interpolant, but can simply substitute in the function values :math:`\psi(\omega_k)`
-in place of :math:`p_k(\omega_k)` (and likewise substitute :math:`p_k(\omega_{k+1})` with :math:`\psi()\omega_{k+1}`) in the expression above.
+in place of :math:`p_k(\omega_k)` (and likewise substitute :math:`p_k(\omega_{k+1})` with :math:`\psi(\omega_{k+1})` in the expression above.
 
 PCHIP
 ^^^^^
