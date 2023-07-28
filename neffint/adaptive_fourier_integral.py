@@ -24,13 +24,13 @@ from .utils import complex_pchip
 MAX_FREQUENCY = 1e25
 
 def _difference_norm(a: ArrayLike, b: ArrayLike) -> np.ndarray:
-    """Calculate a standard difference norm of `a` and `b`
+    """Calculate a standard difference norm of ``a`` and ``b``
     
     If the input is 0- or 1-dimensional, the absolute difference is returned.
     
     Any dimensions after the first are collapsed using the 2-norm,
     so that the output is either 0-dimensional (for a and b 0-dimensional) or
-    1D (for `a` and `b` of 1D or higher).
+    1D (for ``a`` and ``b`` of 1D or higher).
 
     :param a: Array 
     :type a: ArrayLike
@@ -79,24 +79,24 @@ class CachedFunc:
 
 
 def _bisect_intervals(interval_endpoints: np.ndarray, linear_bisection_mask: np.ndarray, step_towards_inf_factor: float) -> np.ndarray:
-    """Bisect the intervals between elements of `interval_endpoints`
+    """Bisect the intervals between elements of ``interval_endpoints``
     
-    The bisection is done either using the arithmetic or geometric mean of two neighboring points in `interval_endpoint`. Which type depends on `linear_bisection_mask`.
+    The bisection is done either using the arithmetic or geometric mean of two neighboring points in ``interval_endpoint``. Which type depends on ``linear_bisection_mask``.
     For intervals containing 0, the corresponding value in linear_bisection_mask must be True
     
-    If one of the endpoints of an interval is +-inf, the "midpoint" is generated as `step_towards_inf_factor` multiplied with the finite endpoint of the interval.
-    In other words, this is the geometric midpoint between the finite point and a phantom point generated as `step_towards_inf_factor`^2 multiplied by the finite point.
+    If one of the endpoints of an interval is +-inf, the "midpoint" is generated as ``step_towards_inf_factor`` multiplied with the finite endpoint of the interval.
+    In other words, this is the geometric midpoint between the finite point and a phantom point generated as ``step_towards_inf_factor``^2 multiplied by the finite point.
     
     It is assumed that if there are infinities in the array, the neighboring point is a finite number *of the same sign*.
 
     :param interval_endpoints: A sorted 1D array of floats with length N, denoting the edges of the intervals to be bisected
     :type interval_endpoints: np.ndarray
-    :param linear_bisection_mask: A 1D array of bools with length N-1, where `True` denotes that the interval of the same index
-    should be bisected linearly,and `False` geometrically
+    :param linear_bisection_mask: A 1D array of bools with length N-1, where ``True`` denotes that the interval of the same index
+    should be bisected linearly,and ``False`` geometrically
     :type linear_bisection_mask: np.ndarray
-    :param step_towards_inf_factor: For intervals between edges (-inf, a) or (a, inf), where a is some finite number, the "midpoint" will be calculated as a*`step_towards_inf_factor`
+    :param step_towards_inf_factor: For intervals between edges (-inf, a) or (a, inf), where a is some finite number, the "midpoint" will be calculated as a*``step_towards_inf_factor``
     :type step_towards_inf_factor: float
-    :return: A 1D array of floats with length N-1 containing the midpoints between the points in `interval_endpoints`
+    :return: A 1D array of floats with length N-1 containing the midpoints between the points in ``interval_endpoints``
     :rtype: np.ndarray
     """
     
@@ -125,12 +125,12 @@ def _bisect_intervals(interval_endpoints: np.ndarray, linear_bisection_mask: np.
 def _simpson_integral(a: ArrayLike, b: ArrayLike, y_mid: ArrayLike, geometric: bool) -> ArrayLike:
     """Calculate the Simpson's rule integral approximation of y(x), *assuming y(a) == y(b) == 0 at the interval endpoints a and b*
     
-    The midpoint function value `y_mid` can be from a midpoint generated either as the arithmetic mean of a and b,
-    in which case `geometric` should be set to `False`. The normal Simpson's rule is then used: integral = 2/3 * (b-a) * y_mid
+    The midpoint function value ``y_mid`` can be from a midpoint generated either as the arithmetic mean of a and b,
+    in which case ``geometric`` should be set to ``False``. The normal Simpson's rule is then used: integral = 2/3 * (b-a) * y_mid
     
-    If `y_mid` comes from the geometric midpoint, `geometric` should be `True`, and a modified Simpson's rule is used:
+    If ``y_mid`` comes from the geometric midpoint, ``geometric`` should be ``True``, and a modified Simpson's rule is used:
     integral = 2/3 * sqrt(a*b) * sign(a) * log(b/a) * y_mid
-    Note that `geometric` must be `False` if the interval contains 0, i.e. if sign(a) != sign(b)
+    Note that ``geometric`` must be ``False`` if the interval contains 0, i.e. if sign(a) != sign(b)
 
     :param a: The lower endpoint(s) of the interval(s)
     :type a: ArrayLike
@@ -138,7 +138,7 @@ def _simpson_integral(a: ArrayLike, b: ArrayLike, y_mid: ArrayLike, geometric: b
     :type b: ArrayLike
     :param y_mid: The function value at the arithmetic or geometric midpoint of the interval. Can be complex
     :type y_mid: ArrayLike
-    :param geometric: Flag set to `True` if `y_mid` comes from the geometric midpoint of the interval, and False if from the arithmetic midpoint
+    :param geometric: Flag set to ``True`` if ``y_mid`` comes from the geometric midpoint of the interval, and False if from the arithmetic midpoint
     :type geometric: bool
     :return: The Simpson's rule numerical integral over the interval(s)
     :rtype: ArrayLike
@@ -167,18 +167,18 @@ def _integrate_interpolation_error(
     
     For geometrically bisected intervals: 2/3 * sqrt(a*b) * log(b/a) * sign(a) * err(sqrt(a*b)*sign(a*b))
     
-    If the frequency is higher than `MAX_FREQUENCY` or lower than `-MAX_FREQUENY`, the integral is set to 0 to terminate the loop and avoid overflow.
+    If the frequency is higher than ``MAX_FREQUENCY`` or lower than ``-MAX_FREQUENY``, the integral is set to 0 to terminate the loop and avoid overflow.
 
     :param interval_endpoints: A sorted 1D array of floats with length N, denoting the edges of the intervals over which to integrate the error
     :type interval_endpoints: np.ndarray
-    :param linear_bisection_mask: A 1D array of bools with length N-1, where `True` denotes that the interval of the same index was bisected linearly, and `False` geometrically.
+    :param linear_bisection_mask: A 1D array of bools with length N-1, where ``True`` denotes that the interval of the same index was bisected linearly, and ``False`` geometrically.
     Must be True for intervals containing 0
     :type linear_bisection_mask: np.ndarray
     :param interpolation_error_at_midpoints: A 1D array of floats with length N-1 containing the interpolation error
     at the midpoints of the corresponding interval (assuming the endpoints were used to make the interpolation)
     :type interpolation_error_at_midpoints: np.ndarray
-    :param step_towards_inf_factor: For intervals between edges (-inf, a) or (a, inf), where a is some finite number, the "midpoint" is calculated as a*`step_towards_inf_factor`,
-    and the integration is performed over the interval (a*`step_towards_inf_factor`**2, a) or (a, a*`step_towards_inf_factor`**2), respectively
+    :param step_towards_inf_factor: For intervals between edges (-inf, a) or (a, inf), where a is some finite number, the "midpoint" is calculated as a*``step_towards_inf_factor``,
+    and the integration is performed over the interval (a*``step_towards_inf_factor``**2, a) or (a, a*``step_towards_inf_factor``**2), respectively
     :type step_towards_inf_factor: float
     :return: A 1D array of floats with length N-1 containing the approximated integrated interpolation error over each interval
     :rtype: np.ndarray
@@ -236,29 +236,29 @@ def _find_interval_errors(
     interpolation_error_norm: Callable[[ArrayLike, np.ndarray], float],
     step_towards_inf_factor: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Finds the integrated interpolation error obtained when interpolating `func` on `frequencies`
+    """Finds the integrated interpolation error obtained when interpolating ``func`` on ``frequencies``
     
-    Constructs a PCHIP interpolation of `func` based on `frequencies` and `func_values`.
-    Then bisects all frequency intervals either linearly or geometrically, depending on `linear_bisection_condition`,
+    Constructs a PCHIP interpolation of ``func`` based on ``frequencies`` and ``func_values``.
+    Then bisects all frequency intervals either linearly or geometrically, depending on ``linear_bisection_condition``,
     and evaluates func and the interpolation on these midpoints.
-    The difference between the two is passed through `interpolation_error_norm`
+    The difference between the two is passed through ``interpolation_error_norm``
     and then integrated over each interval using Simpson's method.
 
     :param frequencies: A 1D array of floats with length N containing frequencies [Hz]
     :type frequencies: np.ndarray
-    :param func_values: An array of complex numbers with shape (N, X1, X2, ...) containing the values `func` evaluated at `frequencies`
+    :param func_values: An array of complex numbers with shape (N, X1, X2, ...) containing the values ``func`` evaluated at ``frequencies``
     :type func_values: np.ndarray
     :param func: The function to perform a Fourier integral on
     :type func: Callable[[float], ArrayLike]
     :param linear_bisection_condition: A callable that takes in the left ends of the frequency intervals [Hz] (length N-1)
-    and returns an array of bools of length N-1, where `True` denotes that the following interval should be bisected linearly
+    and returns an array of bools of length N-1, where ``True`` denotes that the following interval should be bisected linearly
     :type linear_bisection_condition: Callable[[np.ndarray], np.ndarray]
-    :param interpolation_error_norm: A callable that takes in the values of `func` at the generated midpoints and the polynomial approximations of those values,
+    :param interpolation_error_norm: A callable that takes in the values of ``func`` at the generated midpoints and the polynomial approximations of those values,
     both with shape (N-1, X1, X2, ...) and calculates some error metric between them, e.g. the absolute difference.
     The output must be 1D and with length N-1 (only the frequency dimension)
     :type interpolation_error_norm: Callable[[ArrayLike, np.ndarray], float]
     :param step_towards_inf_factor: If +-inf is included in the frequency range, the midpoint between it and its (finite) neighbor frequency is computed by multiplying that
-    neighboring frequency with `step_towards_inf_factor`
+    neighboring frequency with ``step_towards_inf_factor``
     :type step_towards_inf_factor: float
     :return: A 1D array of floats with length N-1 containing midpoint frequencies [Hz],
     as well as an array of the same shape containing the integrated interpolation error in the corresponding interval.
@@ -307,58 +307,60 @@ def improve_frequency_range(
     interpolation_error_norm: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]]=None,
     max_iterations: Optional[int] = None
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Performs an adaptive algorithm to improve a frequency range for calculation of the Fourier integral of `func`
+    """Performs an adaptive algorithm to improve a frequency range for calculation of the Fourier integral of ``func``
     
-    The algorithm finds new frequencies by creating a PCHIP interpolaion of `func` on the frequencies, comparing that interpolation
+    The algorithm finds new frequencies by creating a [PCHIP]_ interpolaion of ``func`` on the frequencies, comparing that interpolation
     with the true function value the midpoints of all frequency subintervals, and using Simpson's rule to evaluate the integral of
     the difference between the interpolation and the true function.
-    The midpoint of the subinterval with the largest interpolation error is then added to the `frequencies` array.
+    The midpoint of the subinterval with the largest interpolation error is then added to the ``frequencies`` array.
     
-    This repeats either until `max_iterations` iterations have been performed, or until the interpolation error integral
-    has a smaller total value than `absolute_integral_tolerance`
+    This repeats either until ``max_iterations`` iterations have been performed, or until the interpolation error integral
+    has a smaller total value than ``absolute_integral_tolerance``
     
-    To avoid many repeated calls to `func`, the outputs are cached, so that reevaluation at the same frequency only amounts to a dictionary lookup.
+    To avoid many repeated calls to ``func``, the outputs are cached, so that reevaluation at the same frequency only amounts to a dictionary lookup.
     
-    `func` should only give finite outputs for all frequencies between the extremes of the input frequencies.
+    ``func`` should only give finite outputs for all frequencies between the extremes of the input frequencies.
     
     The improved frequency range will never exceed the boundaries of the input.
     
-    +-inf can be included in the frequency range, but user discretion is advised, as depending on `func` and `step_towards_inf_factor`, adding frequencies towards inf
-    can come at the cost of not adding frequencies close to the most important features of `func`, since the frequency intervals added towards infinity can get very wide
+    +-inf can be included in the frequency range, but user discretion is advised, as depending on ``func`` and ``step_towards_inf_factor``, adding frequencies towards inf
+    can come at the cost of not adding frequencies close to the most important features of ``func``, since the frequency intervals added towards infinity can get very wide
     (they get gradually bigger), and this can overshadow shorter intervals where the error is larger.
     
     The starting frequency range must contain at least 2 finite frequencies, and +-infinity requires the adjacent frequency to be finite, non-zero, and of the same sign. 
     
     It should be noted that while the algorithm will run with as little as 2 initial frequencies, it is for the best results advised to use a frequency range that
-    already captures the most essential features of `func`, and thus use the algorithm to improve this range.
+    already captures the most essential features of ``func``, and thus use the algorithm to improve this range.
+    
+    Based on the algorithm outlined in section 1.6.3 in [N.Mounet-PhD]_.
 
     :param initial_frequencies: A 1D array of floats containing the starting frequencies [Hz]* for the algorithm. Must contain at least 2 frequencies. Can contain +-np.inf.
     :type initial_frequencies: Sequence[float]
     :param func: The function to be Fourier integrated, a function of frequency [Hz]* with a complex output. Does not need to be vectorized.
-    Results will be cached to avoid repeat calls with the same input.
+        Results will be cached to avoid repeat calls with the same input.
     :type func: Callable[[float], ArrayLike]
     :param interpolation_error_norm: A callable that takes in an array of func outputs (shape (N, X1, X2, ...)) and interpolated approximations
-    of the same values (also shape (N, X1, X2, ...))
-    The primary axis (of length N) corresponds to the frequency. The callable should return a norm of the difference between the two inputs,
-    collapsed into a 1D array along the frequency axis, i.e. the output should have the shape (N,).
-    If None (the default) is given, the norm will be calculated using the absolute difference for 1D arrays, or the 2-norm for higher dimension arrays
+        of the same values (also shape (N, X1, X2, ...))
+        The primary axis (of length N) corresponds to the frequency. The callable should return a norm of the difference between the two inputs,
+        collapsed into a 1D array along the frequency axis, i.e. the output should have the shape (N,).
+        If None (the default) is given, the norm will be calculated using the absolute difference for 1D arrays, or the 2-norm for higher dimension arrays
     :type interpolation_error_norm: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]]
     :param absolute_integral_tolerance: The tolerance for the (approximate) integrated interpolation error. When the error drops below this value, the algorithm terminates.
     :type absolute_integral_tolerance: float
     :param step_towards_inf_factor: When one of the ends of the frequency array is +-inf, the bisection of the corresponding interval is calculated by multiplying the (finite)
-    neighboring frequency with this number. Defaults to 2
+        neighboring frequency with this number. Defaults to 2
     :type step_towards_inf_factor: float, optional
     :param bisection_mode_condition: A function that takes in a frequency array [Hz]* and returns an array of bools of the same size,
-    where `True` denotes that the interval following that frequency should be bisected linearly,
-    and `False` geometrically. Can be set to `None`, in which case only geometric bisection is used. Defaults to `None`
+        where ``True`` denotes that the interval following that frequency should be bisected linearly,
+        and ``False`` geometrically. Can be set to ``None``, in which case only geometric bisection is used. Defaults to ``None``
     :type bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]], optional
-    :param max_iterations: The maximum amount of iterations to perform before the algorithm is terminated. If set to `None`, the algorithm will only terminate
-    after the tolerance has been met. Defaults to `None`
+    :param max_iterations: The maximum amount of iterations to perform before the algorithm is terminated. If set to ``None``, the algorithm will only terminate
+        after the tolerance has been met. Defaults to ``None``
     :type max_iterations: Optional[int], optional
-    :return: The refined frequency range [Hz]*, and an array containing the corresponding outputs of `func`
+    :return: The refined frequency range [Hz]*, and an array containing the corresponding outputs of ``func``
     :rtype: Tuple[np.ndarray, np.ndarray]
     
-    * Though Hz is used as units here, any frequency unit will work, just be mindful that if used in a Fourier integral the result will be in units 1/<frequency unit>
+    \*Though Hz is used as units here, any frequency unit will work, just be mindful that if used in a Fourier integral the result will be in units 1/<frequency unit>
     """
     
     # NOTE: Could consider changing all insert and append to work in-place on a larger array. I.e. a dynamic array approach
@@ -443,69 +445,69 @@ def fourier_integral_adaptive(
     interpolation_error_norm: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]]=None,
     max_iterations: Optional[int] = None,
 ) -> np.ndarray:
-    """Performs an adaptive algorithm to improve a frequency range and uses the improved frequency range to compute the Fourier integral of `func`
+    """Performs an adaptive algorithm to improve a frequency range and uses the improved frequency range to compute the Fourier integral of ``func``
     
-    The algorithm finds new frequencies by creating a PCHIP interpolaion of `func` on the frequencies, comparing that interpolation
+    The algorithm finds new frequencies by creating a PCHIP interpolaion of ``func`` on the frequencies, comparing that interpolation
     with the true function value the midpoints of all frequency subintervals, and using Simpson's rule to evaluate the integral of
     the difference between the interpolation and the true function.
-    The midpoint of the subinterval with the largest interpolation error is then added to the `frequencies` array.
+    The midpoint of the subinterval with the largest interpolation error is then added to the ``frequencies`` array.
     
-    This repeats either until `max_iterations` iterations have been performed, or until the interpolation error integral has a
-    smaller total value than `absolute_integral_tolerance`
+    This repeats either until ``max_iterations`` iterations have been performed, or until the interpolation error integral has a
+    smaller total value than ``absolute_integral_tolerance``
     
-    To avoid many repeated calls to `func`, the outputs are cached, so that reevaluation at the same frequency only amounts to a dictionary lookup.
+    To avoid many repeated calls to ``func``, the outputs are cached, so that reevaluation at the same frequency only amounts to a dictionary lookup.
     
-    `func` should only give finite outputs for all frequencies between the extremes of the input frequencies.
+    ``func`` should only give finite outputs for all frequencies between the extremes of the input frequencies.
     
     The improved frequency range will never exceed the boundaries of the input.
     
-    +-inf can be included in the frequency range, but user discretion is advised, as depending on `func` and `step_towards_inf_factor`, adding frequencies towards inf
-    can come at the cost of adding frequencies close to the most important features of `func`.
+    +-inf can be included in the frequency range, but user discretion is advised, as depending on ``func`` and ``step_towards_inf_factor``, adding frequencies towards inf
+    can come at the cost of adding frequencies close to the most important features of ``func``.
     
     It should be noted that while the algorithm will run with as little as 2 initial frequencies, it is for the best results advised to use a frequency range that
-    already captures the most essential features of `func`, and thus use the algorithm to improve this range.
+    already captures the most essential features of ``func``, and thus use the algorithm to improve this range.
     
     The Fourier integral itself is the integral from fmin to fmax of : exp(2*pi*j*f*t)*func(f)*df,
     
-    where t is the time, fmin is the first frequency in the input `frequencies`, fmax is the highest frequency and func(f) is the input function of frequency.
+    where t is the time, fmin is the first frequency in the input ``frequencies``, fmax is the highest frequency and func(f) is the input function of frequency.
     
     It is computed using a Filon type algorithm using a piecewise cubic Hermite interpolating polynomial (pchip). 
-    For details on implementation, see [1].
+    For details on implementation, see [N.Mounet-PhD]_.
     
-    This function combines the functionality of `neffint.improve_frequency_range` and `neffint.fourier_integral_fixed_sampling`, and only for convenience.
+    This function combines the functionality of ``neffint.improve_frequency_range`` and ``neffint.fourier_integral_fixed_sampling``, and only for convenience.
     If the improved frequencies or the corresponding function values are needed, use the two functions separately.
+
+    Based on the algorithm outlined in section 1.6.3 in [N.Mounet-PhD]_.
 
     :param times: Float or 1D array of floats, the time(s) [s]* to compute the fourier integral for
     :type times: ArrayLike
     :param initial_frequencies: A 1D array of floats containing the starting frequencies [Hz]* for the algorithm. Must contain at least 2 frequencies. Can contain +-np.inf.
     :type initial_frequencies: Sequence[float]
     :param func: The function to be Fourier integrated, a function of frequency [Hz] with a complex output. Does not need to be vectorized.
-    Results will be cached to avoid repeat calls with the same input.
+        Results will be cached to avoid repeat calls with the same input.
     :type func: Callable[[float], ArrayLike]
     :param interpolation_error_norm: A callable that takes in an array of func outputs (shape (N, X1, X2, ...)) and interpolated approximations
-    of the same values (also shape (N, X1, X2, ...))
-    The primary axis (of length N) corresponds to the frequency. The callable should return a norm of the difference between the two inputs,
-    collapsed into a 1D array along the frequency axis, i.e. the output should have the shape (N,).
-    If None (the default) is given, the norm will be calculated using the absolute difference for 1D arrays, or the 2-norm for higher dimension arrays
+        of the same values (also shape (N, X1, X2, ...))
+        The primary axis (of length N) corresponds to the frequency. The callable should return a norm of the difference between the two inputs,
+        collapsed into a 1D array along the frequency axis, i.e. the output should have the shape (N,).
+        If None (the default) is given, the norm will be calculated using the absolute difference for 1D arrays, or the 2-norm for higher dimension arrays
     :type interpolation_error_norm: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]]
     :param absolute_integral_tolerance: The tolerance for the (approximate) integrated interpolation error. When the error drops below this value, the algorithm terminates.
     :type absolute_integral_tolerance: float
     :param step_towards_inf_factor: When one of the ends of the frequency array is +-inf, the bisection of the corresponding interval is calculated by multiplying the (finite)
-    neighboring frequency with this number. Defaults to 2
+        neighboring frequency with this number. Defaults to 2
     :type step_towards_inf_factor: float, optional
     :param bisection_mode_condition: A function that takes in a frequency array [Hz]* and returns an array of bools of the same size,
-    where `True` denotes that the interval following that frequency should be bisected linearly, and `False` geometrically.
-    Can be set to `None`, in which case only geometric bisection is used. Defaults to `None`
+        where ``True`` denotes that the interval following that frequency should be bisected linearly, and `False` geometrically.
+        Can be set to ``None``, in which case only geometric bisection is used. Defaults to ``None``
     :type bisection_mode_condition: Optional[Callable[[np.ndarray], np.ndarray]], optional
-    :param max_iterations: The maximum amount of iterations to perform before the algorithm is terminated. If set to `None`, the algorithm will only terminate
-    after the tolerance has been met. Defaults to `None`
+    :param max_iterations: The maximum amount of iterations to perform before the algorithm is terminated. If set to ``None``, the algorithm will only terminate
+        after the tolerance has been met. Defaults to ``None``
     :type max_iterations: Optional[int], optional
-    :return: The fourier integral of `func` for the given input `times`
+    :return: The fourier integral of `func` for the given input ``times``
     :rtype: np.ndarray
     
-    * Though the units s and Hz are used here, any coherent set of time and frequency units will work
-    
-    [1] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012)
+    \*Though the units s and Hz are used here, any coherent set of time and frequency units will work
     """
     
     

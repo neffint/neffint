@@ -3,6 +3,8 @@ Neffint is an acronym for **N**on-**e**quidistant **F**ilon **F**ourier **int**e
 
 Neffint licensed under an Apache-2.0 license. See [HERE](https://www.apache.org/licenses/LICENSE-2.0) or the LICENSE file for details.
 
+Documentation for the package is hosted at: https://neffint.readthedocs.io/en/latest
+
 ## Repository structure
 
 The following is a brief explanation of the repository structure:

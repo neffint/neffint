@@ -18,9 +18,16 @@ PACKAGES_REQUIRED = {
         "numpy",
         "scipy",
     ],
-    "test":[
+    "test": [
         "pytest",
-    ]
+    ],
+    "docs": [
+        "sphinx",
+        "sphinx-rtd-theme",
+        "nbsphinx",
+        "nbsphinx-link",
+        "ipykernel",
+    ],
 }
 
 root_dir = Path(__file__).parent.absolute()
