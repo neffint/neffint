@@ -127,7 +127,7 @@ the error should gradually shrink, and one can terminate the iteration when reac
 As an alternative to bisecting the subintervals using the arithmetic mean, as shown above, one could use the geometric mean instead:
 
 .. math::
-    \omega_{k, k+1} = \operatorname{sign}(\omega_k) \sqrt{\omega_k \omega_{k+1}} = \operatorname{sign}(\omega_k) e^{\frac{\log(\left|\omega_k\right|) + \log(\left|\omega_{k+1}\right|)}{2}}.
+    \omega_{k, k+1} = \operatorname{sign}(\omega_k) \sqrt{\omega_k \omega_{k+1}} = \operatorname{sign}(\omega_k) e^{\frac{\log(|\omega_k|) + \log(|\omega_{k+1}|)}{2}}.
 
 This can not be done for intervals containing zero, and requires Simpson's formula to be modified into
 
@@ -222,7 +222,7 @@ Appendix B - Log-scale Simpson's method
 
 .. math::
     \begin{align*}
-        \int_{x_0}^{y_0} f(x) dx &= \int_{u_0}^{u_1} f(e^u) e^u du \quad |\quad u = \log(x), u_0 = \log(x_0) , u_1 = \log(x_1) \\
+        \int_{x_0}^{x_1} f(x) dx &= \int_{u_0}^{u_1} f(e^u) e^u du \quad |\quad u = \log(x), u_0 = \log(x_0) , u_1 = \log(x_1) \\
         \\
         &\approx \frac{u_1 - u_0}{6} \left(f(e^{u_0})e^{u_0} + 4 f(e^{\frac{u_0 + u_1}{2}})e^{\frac{u_0 + u_1}{2}} + f(e^{u_1})e^{u_1} \right) \\
         \\
