@@ -159,10 +159,7 @@ In both solutions,
 .. math::
     \Delta_k = \omega_{k+1} - \omega_k
 
-denotes the length of the frequency interval. It is also worth noting that while e.g. :math:`p_k(\omega)` is written in the expressions,
-by construction, this is identical to :math:`\psi(\omega)` as well.
-There is in practice therefore not necessary to compute the interpolant (i.e. slopes and constants on each interval for linear interpolation),
-as knowing the function values is enough.
+denotes the length of the frequency interval.
 
 Linear
 ^^^^^^
@@ -182,6 +179,11 @@ where :math:`\Lambda(x)` is given by
 
 .. math::
     \Lambda(x) = - \frac{i e^{ix}}{x} + \frac{e^{ix} -1}{x^2}.
+
+It is worth noting that since we in the linear case only to know the interpolant values at the interpolation points :math:`\omega_k`,
+where by construction of the interpolant :math:`p_k(\omega_k) = \psi(\omega_k)`.
+We therefore do not need to actually construct the interpolant, but can simply substitute in the function values :math:`\psi(\omega_k)`
+in place of :math:`p_k(\omega_k)` (and likewise substitute :math:`p_k(\omega_{k+1})` with :math:`\psi()\omega_{k+1}`) in the expression above.
 
 PCHIP
 ^^^^^
