@@ -36,7 +36,7 @@ When computing Fourier integrals using the Neffint method, the integration range
     \int_{-\infty}^{\infty} \psi(\omega) e^{i \omega t} d\omega
     \approx
     \int_{-\infty}^{\omega_{min}} \psi(\omega) e^{i \omega t} d\omega
-    + \int_{-\omega_{min}}^{\omega_{max}} \psi(\omega) e^{i \omega t} d\omega
+    + \int_{\omega_{min}}^{\omega_{max}} \psi(\omega) e^{i \omega t} d\omega
     + \int_{\omega_{max}}^{\infty} \psi(\omega) e^{i \omega t} d\omega,
 
 and compute each of the regions separately.
@@ -65,7 +65,7 @@ One can in that case neglect the negative asymptotic term and set :math:`\omega_
 Integrating the main integration range
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The main integration range we will split into subintervals :math:`[\omega_k, \omega_{k+1}]`,
+We split the main integration range into subintervals :math:`[\omega_k, \omega_{k+1}]`,
 `not necessarily with equal spacing`.
 On each of these subintervals, we replace :math:`\psi` with a polynomial :math:`p_k(\omega)`
 that interpolates :math:`\psi` on that subinterval. This yields a new integral,
@@ -125,9 +125,9 @@ the error should gradually shrink, and one can terminate the iteration when reac
 As an alternative to bisecting the subintervals using the arithmetic mean, as shown above, one could use the geometric mean instead:
 
 .. math::
-    \omega_{k, k+1} = \operatorname{sign}(\omega_k) \sqrt{\omega_k \omega_{k+1}} = e^{\frac{\log(\omega_k) + \log(\omega_{k+1})}{2}}.
+    \omega_{k, k+1} = \operatorname{sign}(\omega_k) \sqrt{\omega_k \omega_{k+1}} = \operatorname{sign}(\omega_k) e^{\frac{\log(\left|\omega_k\right|) + \log(\left|\omega_{k+1}\right|)}{2}}.
 
-This can not be done for intervals containing zero, and requires Simpson's formula to be modified to
+This can not be done for intervals containing zero, and requires Simpson's formula to be modified into
 
 .. math::
     \text{Total error} = \sum_k \frac{2}{3} \log\left({\frac{\omega_{k+1}}{\omega_k}}\right) | \psi(\omega_{k, k+1}) - p_k(\omega_{k, k+1}) |\omega_{k, k+1}.
@@ -150,7 +150,7 @@ Appendix A - Integration of linear and PCHIP interpolants
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 As mentioned in `Integrating the main integration range`_, when performing the Fourier integral using Filon's method, any interpolating polynomial can in principle be used.
-Here, we show the solution for a linear interpolant and a PCHIP interpolant. Derivation of these results are given in [N.Mounet-PhD]_.
+Here, we show the solution for a linear interpolant and a PCHIP (Piecewise Cubic Hermite Interpolating Polynomial - see [PCHIP]_) interpolant. Derivation of these results are given in [N.Mounet-PhD]_.
 
 In both solutions,
 
@@ -171,7 +171,7 @@ When using a linear interpolation, the integral of each subinterval evaluates to
         \int_{\omega_k}^{\omega_{k+1}} p_k(\omega) e^{i \omega t} d\omega
         = \Delta_k[
             & p_k(\omega_k) e^{i \omega_{k+1} t} \Lambda(-\Delta_k t) \\
-            + & p_k(\omega_{k+1}) e^{i \omega_k t} \Lambda(-\Delta_k t)
+            + & p_k(\omega_{k+1}) e^{i \omega_k t} \Lambda(\Delta_k t)
         ],
     \end{align}
 
@@ -192,7 +192,7 @@ When using PCHIP interpolation, the integral in each subinterval evaluates to
         = \Delta_k[ 
             & p_k(\omega_k) e^{i \omega_{k+1} t} \Phi(-\Delta_k t) \\
             + & p_k(\omega_{k+1}) e^{i \omega_k t} \Phi(\Delta_k t) \\
-            + & \Delta_k p_k'(\omega_k) e^{i \omega_{k+1} t} \Psi(-\Delta_k t) \\
+            - & \Delta_k p_k'(\omega_k) e^{i \omega_{k+1} t} \Psi(-\Delta_k t) \\
             + & \Delta_k p_k'(\omega_{k+1}) e^{i \omega_k t} \Psi(\Delta_k t)
         ],
     \end{align}
@@ -220,7 +220,7 @@ Appendix B - Log-scale Simpson's method
 
 .. math::
     \begin{align*}
-        \int_a^b f(x) dx &= \int_{u_0}^{u_1} f(e^u) e^u du \quad |\quad u = \log(x), u_0 = \log(x_0) , u_1 = \log(x_1) \\
+        \int_{x_0}^{y_0} f(x) dx &= \int_{u_0}^{u_1} f(e^u) e^u du \quad |\quad u = \log(x), u_0 = \log(x_0) , u_1 = \log(x_1) \\
         \\
         &\approx \frac{u_1 - u_0}{6} \left(f(e^{u_0})e^{u_0} + 4 f(e^{\frac{u_0 + u_1}{2}})e^{\frac{u_0 + u_1}{2}} + f(e^{u_1})e^{u_1} \right) \\
         \\
