@@ -35,7 +35,28 @@ To get an editable install, download the repository from Github and install with
 
    git clone https://github.com/neffint/neffint.git
    cd neffint
-   pip install -e .
+   pip install -e .[test]
+
+The ``[test]`` is optional, but installs the requirements for running the tests, which is needed for development.
+To run the tests after installing locally with the above commands, simply run
+
+.. code-block:: console
+
+   pytest
+
+from the root directory of the repository.
+
+To compile the documentation locally, run
+
+.. code-block:: console
+
+   git clone https://github.com/neffint/neffint.git
+   cd neffint
+   pip install .[docs]
+   sphinx-build -b html docs/source docs/build/html
+
+The documentation at https://neffint.readthedocs.io/ is built automatically by ReadTheDocs at every commit to the `main` branch.
+
 
 
 

@@ -9,7 +9,9 @@ The Neffint package is mainly designed for with computing Fourier integrals, i.e
 .. math::
     \int_{-\infty}^{\infty} \psi(\omega) e^{i \omega t} d\omega,
 
-using a quadrature method largely based on section 1.6.3 in [N.Mounet-PhD]_, which builds on the work of [Filon]_.
+using a quadrature method largely based on section 1.6.3 in [N.Mounet-PhD]_
+and the "Numerical Benchmarks" section of [N.Mounet-Wake-function-calculation]_,
+which build on the work of [Filon]_.
 The need for a specialized method arises from the fact that for large values of `t`,
 the integrand :math:`\psi(\omega) e^{i \omega t}` oscillates with a very short period.
 This can cause problems when using a standard Fast Fourier Transform (FFT) technique,
@@ -20,7 +22,7 @@ since it relies on the assumption that on, each frequency subinterval :math:`[\o
     \approx
     (\omega_{k+1} - \omega_k) \psi(\omega_k) e^{i \omega t},
 
-which for high `t` require a very fine frequency spacing to be correct.
+which for high `t` require a very fine frequency spacing to be correct. See e.g. [Numerical-Recipes]_ for a more detailed description.
 In many cases this is unfeasable in terms of computing time and/or memory usage.
 The same requirements for fine frequency grids also apply to other standard integration schemes, such as Simpson's method.
 
@@ -230,6 +232,11 @@ Appendix B - Log-scale Simpson's method
     \end{align*}
 
 
+Bibliography
+------------
+
 .. [N.Mounet-PhD] N. Mounet. The LHC Transverse Coupled-Bunch Instability, PhD thesis 5305 (EPFL, 2012), http://infoscience.epfl.ch/record/174672/files/EPFL_TH5305.pdf
+.. [N.Mounet-Wake-function-calculation]  N. Mounet, E. Dadiani, E. Métral, A. Rahemtulla, and C. Zannini, “Closed Form Formulas of the Indirect Space Charge Wake Function for Axisymmetric Structures”, in Proc. HB'21, Batavia, IL, USA, Oct. 2021, pp. 65-70. doi:10.18429/JACoW-HB2021-MOP10
 .. [Filon] L. N. G. Filon. On a quadrature formula for trigonometric integrals. Proc. Roy. Soc. Edinburgh, 49:38-47, 1928.
+.. [Numerical-Recipes] W. H. Press, S. A. Teukolsky, W. T. Vetterling, and B. P. Flannery. Numerical recipes in C. Cambridge University Press, 2nd edition, 1999. http://apps.nrbook.com/c/index.html.
 .. [PCHIP] F. N. Fritsch and J. Butland, A method for constructing local monotone piecewise cubic interpolants, SIAM J. Sci. Comput., 5(2), 300-304 (1984). DOI:10.1137/0905021.
