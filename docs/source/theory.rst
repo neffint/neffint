@@ -20,7 +20,7 @@ since it relies on the assumption that on, each frequency subinterval :math:`[\o
 .. math::
     \int_{\omega_k}^{\omega_{k+1}} \psi(\omega) e^{i \omega t} d\omega
     \approx
-    (\omega_{k+1} - \omega_k) \psi(\omega_k) e^{i \omega t},
+    (\omega_{k+1} - \omega_k) \psi(\omega_k) e^{i \omega_k t},
 
 which for high `t` require a very fine frequency spacing to be correct. See e.g. [Numerical-Recipes]_ for a more detailed description.
 In many cases this is unfeasable in terms of computing time and/or memory usage.
