@@ -17,6 +17,7 @@ from typing import Callable, Tuple
 import numpy as np
 import pytest
 from numpy.typing import ArrayLike
+from scipy.interpolate import PchipInterpolator
 
 from neffint.fixed_grid_fourier_integral import (
     InterpolationMode, _fourier_integral_inf_correction, _lambda, _phi_and_psi,
@@ -41,6 +42,32 @@ def test_lambda():
     output_lambda = _lambda(input_x)
 
     assert output_lambda == pytest.approx(expected_lambda, rel=comparison_tolerance, abs=comparison_tolerance)
+
+
+def test_kernels_at_zero():
+    """The Fourier kernels have finite limits at zero phase."""
+    assert _lambda(np.array([0.]))[0] == pytest.approx(0.5)
+    phi, psi = _phi_and_psi(np.array([0.]))
+    assert phi[0] == pytest.approx(0.5)
+    assert psi[0] == pytest.approx(-1 / 12)
+
+
+@pytest.mark.parametrize("interpolation_mode", [mode.value for mode in InterpolationMode])
+def test_fourier_integral_at_zero(interpolation_mode: str):
+    """At zero time the transform equals the integral of the selected interpolant."""
+    frequencies = np.array([-2., -0.5, 0.1, 1., 3.])
+    values = np.array([1.+2j, 2.+3j, 4.-1j, 1.-2j, 0.+1j])
+    if interpolation_mode == InterpolationMode.LINEAR.value:
+        expected = np.trapz(values, frequencies)
+    else:
+        expected = (PchipInterpolator(frequencies, values.real).integrate(frequencies[0], frequencies[-1])
+                    + 1j * PchipInterpolator(frequencies, values.imag).integrate(frequencies[0], frequencies[-1]))
+    expected *= 2 * np.pi
+    result = fourier_integral_fixed_sampling(
+        times=np.array([0.]), frequencies=frequencies, func_values=values,
+        pos_inf_correction_term=False, neg_inf_correction_term=False,
+        interpolation=interpolation_mode)
+    assert result[0] == pytest.approx(expected, rel=1e-14)
 
 
 def test_phi_and_psi():

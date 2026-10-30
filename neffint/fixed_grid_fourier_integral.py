@@ -44,6 +44,8 @@ def _lambda(x: ArrayLike) -> np.ndarray:
     """
     # Make input into array if it is not already, and prepare output arrays
     x = np.asarray(x)
+    if not np.issubdtype(x.dtype, np.floating):
+        x = x.astype(float)
     result = np.zeros_like(1j*x)
 
     # Set relative tolerance to machine precision
@@ -71,9 +73,9 @@ def _lambda(x: ArrayLike) -> np.ndarray:
         result[taylor_mask] += 1/(n+2) * jx_to_n * inv_factorial
         
         # Check convergence
-        min_component = np.min([np.abs(np.real(result[taylor_mask])), np.abs(np.imag(result[taylor_mask]))], axis=0)
         remaining_term_bound = abs_x_to_n_plus_1*exp_abs_x * inv_factorial * 1/((n+3)*(n+1))
-        if np.all(remaining_term_bound < rel_tolerance * min_component):
+        # A component can vanish exactly (notably at x=0); use the complex magnitude.
+        if np.all(remaining_term_bound <= rel_tolerance * np.abs(result[taylor_mask])):
             break
         
         # Update variables
@@ -107,6 +109,8 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
 
     # Make input into array if it is not already, and prepare output arrays
     x = np.asarray(x)
+    if not np.issubdtype(x.dtype, np.floating):
+        x = x.astype(float)
     phi = np.zeros_like(1j*x)
     psi = np.zeros_like(phi)
 
@@ -143,18 +147,16 @@ def _phi_and_psi(x: ArrayLike) -> Tuple[np.ndarray, np.ndarray]:
             phi[taylor_mask] += (n+6)/((n+3)*(n+4)) * jx_to_n * inv_factorial
 
             # Check for convergence
-            min_phi_component = np.min([np.abs(np.real(phi[taylor_mask])), np.abs(np.imag(phi[taylor_mask]))], axis=0)
             phi_remaining_terms_bound = 2 * abs_x_to_n_plus_1 * exp_abs_x * inv_factorial / ((n+1)*(n+5))
-            phi_converged = np.all(phi_remaining_terms_bound < rel_tolerance * min_phi_component)
+            phi_converged = np.all(phi_remaining_terms_bound <= rel_tolerance * np.abs(phi[taylor_mask]))
         
         # Only calculate psi if not yet converged
         if not psi_converged:
             psi[taylor_mask] += - 1/((n+3)*(n+4)) * jx_to_n * inv_factorial
 
             # Check for convergence
-            min_psi_component = np.min([np.abs(np.real(psi[taylor_mask])), np.abs(np.imag(psi[taylor_mask]))], axis=0)
             psi_remaining_terms_bound = abs_x_to_n_plus_1 * exp_abs_x * inv_factorial / ((n+1)*(n+4)*(n+5))
-            psi_converged = np.all(psi_remaining_terms_bound < rel_tolerance*min_psi_component)
+            psi_converged = np.all(psi_remaining_terms_bound <= rel_tolerance*np.abs(psi[taylor_mask]))
         
         # Update variables
         jx_to_n *= 1j*xx
@@ -316,16 +318,19 @@ def fourier_integral_fixed_sampling(
         times = times[..., np.newaxis]
     
     
-    # Do the fourier integration
+    # Bound temporary arrays, which otherwise grow with times * intervals * output size.
+    cells_per_time = (len(omegas[0]) - 1) * np.prod(func_values.shape[2:], dtype=int)
+    batch_size = max(1, 131072 // max(1, cells_per_time))
     if interpolation_mode == InterpolationMode.PCHIP:
         func_derivatives = func_derivatives[np.newaxis, ...] # Add time axis
-        result += _fourier_integral_fixed_sampling_pchip(times, omegas, func_values, func_derivatives)
-    
-    elif interpolation_mode == InterpolationMode.LINEAR:
-        result += _fourier_integral_fixed_sampling_linear(times, omegas, func_values)
-    
-    else:
-        raise NotImplementedError(f"This state should be unreachable. Need to implement fourier integral calculation for {interpolation_mode}")
+    for start in range(0, len(times), batch_size):
+        batch = slice(start, start + batch_size)
+        if interpolation_mode == InterpolationMode.PCHIP:
+            result[batch] += _fourier_integral_fixed_sampling_pchip(
+                times[batch], omegas, func_values, func_derivatives)
+        elif interpolation_mode == InterpolationMode.LINEAR:
+            result[batch] += _fourier_integral_fixed_sampling_linear(
+                times[batch], omegas, func_values)
     
     return result
         
@@ -343,7 +348,7 @@ def _fourier_integral_fixed_sampling_pchip(
     x = delta_omegas*times
     exp_x = np.exp(1j * x)
     phi_x, psi_x = _phi_and_psi(x)
-    phi_minus_x, psi_minus_x = _phi_and_psi(-x)
+    phi_minus_x, psi_minus_x = np.conj(phi_x), np.conj(psi_x)
 
     # Calculate integral by summing over frequency axis
     result = np.sum(delta_omegas*exp_omegas*(
@@ -362,11 +367,15 @@ def _fourier_integral_fixed_sampling_linear(
 ) -> np.ndarray:
     
     delta_omegas = np.diff(omegas, axis=1)
+    x = delta_omegas * times
+    exp_omegas = np.exp(1j * omegas[:, :-1] * times)
+    exp_x = np.exp(1j * x)
+    lambda_x = _lambda(x)
 
     # Calculate integral by summing over frequency axis
-    result = np.sum(delta_omegas*(
-        func_values[:, :-1]  * np.exp(1j*omegas[:, 1: ]*times) * _lambda(-delta_omegas*times)
-        + func_values[:, 1:] * np.exp(1j*omegas[:, :-1]*times) * _lambda( delta_omegas*times) 
+    result = np.sum(delta_omegas * exp_omegas * (
+        func_values[:, :-1] * exp_x * np.conj(lambda_x)
+        + func_values[:, 1:] * lambda_x
     ), axis=1) # Sum over frequency axis
 
     return result
